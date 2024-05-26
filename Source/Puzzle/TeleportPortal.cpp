@@ -38,8 +38,8 @@ ATeleportPortal::ATeleportPortal()
 	PortalCamera->bCaptureOnMovement = false;
 	PortalCamera->bAlwaysPersistRenderingState = true;
 
-	PlayerDetection = CreateDefaultSubobject<UBoxComponent>(FName("Detection"));
-	PlayerDetection->SetupAttachment(RootComponent);
+	Detection = CreateDefaultSubobject<UBoxComponent>(FName("Detection"));
+	Detection->SetupAttachment(RootComponent);
 }
 
 // Called when the game starts or when spawned
@@ -149,10 +149,10 @@ void ATeleportPortal::UpdateViewportSize()
 
 void ATeleportPortal::CheckTeleportPlayer()
 {
-	TArray<AActor*> overlappingActors;
-	PlayerDetection->GetOverlappingActors(overlappingActors, ATP_FirstPersonCharacter::StaticClass());
+	TArray<AActor*> OverlappingActors;
+	Detection->GetOverlappingActors(OverlappingActors);
 	
-	for (AActor* OverlappingActor : overlappingActors)
+	for (AActor* OverlappingActor : OverlappingActors)
 	{
 		ACharacter* OverlappingCharacter = Cast<ACharacter>(OverlappingActor);
 		if (OverlappingCharacter && OverlappingCharacter->IsPlayerControlled())
@@ -163,21 +163,11 @@ void ATeleportPortal::CheckTeleportPlayer()
 			{
 				DoTeleportPlayer();
 			}
-		} else
+		} else if(OverlappingActor != this)
 		{
 			DoTeleport(OverlappingActor);
 		}
 	}
-	
-	
-	// for (auto OverlapingActor : overlappingActors)
-	// {
-	// 	ATP_FirstPersonCharacter* CastedPlayer = Cast<ATP_FirstPersonCharacter>(OverlapingActor);
-	// 	if (CastedPlayer && IsCrossingPortal(CastedPlayer->GetFirstPersonCameraComponent()->GetComponentTransform().GetLocation()))
-	// 	{
-	// 		DoTeleport();
-	// 	}
-	// } 
 
 }
 

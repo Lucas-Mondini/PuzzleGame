@@ -32,7 +32,7 @@ public:
 	USceneCaptureComponent2D* PortalCamera;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	UBoxComponent* PlayerDetection;
+	UBoxComponent* Detection;
 
 
 	
