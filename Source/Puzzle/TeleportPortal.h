@@ -25,6 +25,7 @@ public:
 	UPROPERTY(EditAnywhere)
 	float OffsetAmount = -4.f;
 
+
 	
 	UPROPERTY(EditAnywhere)
 	UArrowComponent* ForwardDirection;
@@ -56,6 +57,9 @@ public:
 	UPROPERTY(VisibleAnywhere)
 	int CurrentRecursion;
 
+	UPROPERTY(VisibleAnywhere)
+	FGuid UniqueID;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -76,6 +80,9 @@ private:
 	void SetClipPlanes();
 
 	UFUNCTION(BlueprintCallable)
+	void PreventCameraClipping();
+
+	UFUNCTION(BlueprintCallable)
 	void UpdateViewportSize();
 	
 	UFUNCTION(BlueprintCallable)
@@ -88,15 +95,18 @@ private:
 	void DoTeleportPlayer();
 
 	UFUNCTION(BlueprintCallable)
+	void CallSmoothRotation(ACharacter* player, FRotator Rotation);
+
+	UFUNCTION(BlueprintCallable)
 	void DoTeleport(AActor* actorToTeleport);
 
 	UFUNCTION(BlueprintCallable)
-	FVector UpdatePlayerVelocity(FVector Velocity);
+	FVector UpdateActorVelocity(FVector Velocity);
 	
 
 
-	FVector DoTeleportPlayer_GetNewLocation();
-	FRotator DoTeleportPlayer_GetNewRotation(FRotator rotation);
+	FVector DoTeleport_GetActorNewLocation(AActor* actor);
+	FRotator DoTeleport_GetActorNewRotation(FRotator rotation);
 	
 	
 
@@ -105,5 +115,8 @@ private:
 
 	UFUNCTION(BlueprintCallable)
 	void UpdateSceneCaptureRecursive(FVector Location, FRotator Rotation);
+
+	UFUNCTION()
+	void RemoveTeleportTag(AActor* actorToRemoveTag);
 	
 };
