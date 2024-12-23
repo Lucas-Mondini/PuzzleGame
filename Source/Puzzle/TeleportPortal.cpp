@@ -37,12 +37,13 @@ ATeleportPortal::ATeleportPortal()
 	PortalCamera->CompositeMode = ESceneCaptureCompositeMode::SCCM_Composite;
 	PortalCamera->bCaptureEveryFrame = false;
 	PortalCamera->bCaptureOnMovement = false;
-	PortalCamera->bAlwaysPersistRenderingState = true;
+	PortalCamera->bAlwaysPersistRenderingState = false;
 
 	Detection = CreateDefaultSubobject<UBoxComponent>(FName("Detection"));
 	Detection->SetupAttachment(RootComponent);
 
 	UniqueID = FGuid::NewGuid();
+	this->Tags.Add("Unteleportable");
 }
 
 // Called when the game starts or when spawned
@@ -70,9 +71,20 @@ void ATeleportPortal::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	UpdateSceneCaptureRecursive(FVector(), FRotator());
-	UpdateViewportSize();
-	CheckTeleportPlayer();
+	if(bIsActivated)
+	{
+		PreventCameraClipping();
+		UpdateSceneCaptureRecursive(FVector(), FRotator());
+		UpdateViewportSize();
+		CheckTeleportPlayer();
+		SetClipPlanes();
+	} else
+	{
+		if(PortalPlane->IsVisible())
+		{
+			PortalPlane->SetVisibility(false);
+		}
+	}
 }
 
 void ATeleportPortal::CreateDynamicMaterialInstance()
@@ -107,34 +119,46 @@ void ATeleportPortal::CreateDynamicMaterialInstance()
 /** @Deprecated **/
 void ATeleportPortal::UpdateSceneCapture()
 {
-	if (LinkedPortal)
-	{
-		//Update location
-
-		FVector updatedLocation = this->UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVector());
-		FRotator updatedRotation = this->UpdateSceneCapture_GetUpdatedSceneCaptureRotation(FRotator());
-
-
-		LinkedPortal->PortalCamera->SetWorldLocationAndRotation(updatedLocation, updatedRotation);
-	}
+	// if (LinkedPortal)
+	// {
+	// 	//Update location
+	//
+	// 	FVector updatedLocation = this->UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVector());
+	// 	FRotator updatedRotation = this->UpdateSceneCapture_GetUpdatedSceneCaptureRotation(FRotator());
+	//
+	//
+	// 	LinkedPortal->PortalCamera->SetWorldLocationAndRotation(updatedLocation, updatedRotation);
+	// }
 }
 
 void ATeleportPortal::SetClipPlanes()
 {
 	if (LinkedPortal)
 	{
-		FVector ClipPlaneBase = PortalCamera->GetComponentTransform().GetLocation() + (ForwardDirection->
-			GetForwardVector() * -3);
-
+		FVector ClipPlaneBase = PortalPlane->GetComponentTransform().GetLocation() +
+			ForwardDirection->GetForwardVector() * clipPlanesFactor;
 		
 		PortalCamera->bEnableClipPlane = true;
 		PortalCamera->ClipPlaneBase = ClipPlaneBase;
-		PortalCamera->ClipPlaneNormal = ForwardDirection->GetForwardVector();
+		PortalCamera->ClipPlaneNormal = ForwardDirection->GetForwardVector();		
 	}
 }
 
 void ATeleportPortal::PreventCameraClipping()
 {
+	APlayerCameraManager* CameraManager =  UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
+	FVector CameraLocation = CameraManager->GetCameraLocation();
+	
+	
+	double dot = UKismetMathLibrary::Dot_VectorVector(CameraLocation - GetActorLocation(), ForwardDirection->GetForwardVector());
+	
+	if (dot < 200 && dot > -5) {
+		PortalPlane->SetRelativeLocation(
+			FVector(UKismetMathLibrary::Clamp((1 - dot/50) * -5, -5, 0), 0, 146.0)
+			);
+	} else {
+		PortalPlane->SetRelativeLocation(FVector(0, 0, 146.0));
+	}
 	
 }
 
@@ -173,24 +197,53 @@ void ATeleportPortal::CheckTeleportPlayer()
 	{
 		ACharacter* OverlappingCharacter = Cast<ACharacter>(OverlappingActor);
 		
-		if (OverlappingCharacter && OverlappingCharacter->IsPlayerControlled()) {
+		if (OverlappingCharacter && OverlappingCharacter->IsPlayerControlled() &&
+			!OverlappingCharacter->Tags.Contains(teleportedTag)
+			&& !OverlappingCharacter->Tags.Contains(LinkedTeleportedTag)
+			&& !OverlappingCharacter->Tags.Contains("Unteleportable")) {
 			if (AALSCharacter* castedCharacter = Cast<AALSCharacter>(OverlappingCharacter))
 			{
 				if(IsPlayerCrossingPortal(castedCharacter->GetFirstPersonCameraTarget()))
 				{
 					GEngine->AddOnScreenDebugMessage(1, 5.f, FColor::Red, OverlappingActor->GetName() + " -> Teleported to " + LinkedPortal->GetName());
 					DoTeleportPlayer();
+					OverlappingCharacter->Tags.Add(teleportedTag);
+					OverlappingCharacter->Tags.Add(LinkedTeleportedTag);
+					FTimerHandle TimerHandle;
+					GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([OverlappingCharacter, teleportedTag, LinkedTeleportedTag]()
+					{
+						OverlappingCharacter->Tags.Remove(teleportedTag);
+						OverlappingCharacter->Tags.Remove(LinkedTeleportedTag);
+					}), 0.1f, false);
 				}
 			
 			} else
 			{
 				APlayerCameraManager* CameraManager =  UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
-				if (CameraManager && IsPlayerCrossingPortal(CameraManager->GetTransformComponent()->GetComponentTransform().GetLocation()))
+				FVector CameraLocation = CameraManager ? CameraManager->GetCameraLocation() : FVector();
+				if (AALSCharacter* player = Cast<AALSCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))) {
+					UCameraComponent* CameraComponent =  player->CameraComponent;
+					//CameraLocation = CameraComponent->GetComponentTransform().GetLocation();
+				}
+				if (IsPlayerCrossingPortal(CameraLocation))
 				{
 					DoTeleportPlayer();
+					OverlappingCharacter->Tags.Add(teleportedTag);
+					OverlappingCharacter->Tags.Add(LinkedTeleportedTag);
+					FTimerHandle TimerHandle;
+					GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([OverlappingCharacter, teleportedTag, LinkedTeleportedTag]()
+					{
+						OverlappingCharacter->Tags.Remove(teleportedTag);
+						OverlappingCharacter->Tags.Remove(LinkedTeleportedTag);
+					}), 0.1f, false);
 				}	
 			}
-		} else if(OverlappingActor != this && !OverlappingActor->Tags.Contains(teleportedTag) && !OverlappingActor->Tags.Contains(LinkedTeleportedTag)) {
+		} else if(
+			OverlappingActor != this &&
+			!OverlappingActor->Tags.Contains(teleportedTag) &&
+			!OverlappingActor->Tags.Contains(LinkedTeleportedTag) &&
+			!OverlappingActor->Tags.Contains("Unteleportable")
+			) {
 			DoTeleport(OverlappingActor);
 			OverlappingActor->Tags.Add(teleportedTag);
 			OverlappingActor->Tags.Add(LinkedTeleportedTag);
@@ -393,15 +446,13 @@ FRotator ATeleportPortal::UpdateSceneCapture_GetUpdatedSceneCaptureRotation(FRot
 void ATeleportPortal::UpdateSceneCaptureRecursive(FVector Location, FRotator Rotation)
 {
 
+	APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
 	if(LinkedPortal)
 	{
-		APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
-		FTransform CameraManagerTransform = CameraManager->GetTransform();
-
 		if(CurrentRecursion == 0) {
-			
-			FVector TemporaryLocation = this->UpdateSceneCapture_GetUpdatedSceneCaptureLocation(CameraManagerTransform.GetLocation());
-			FRotator TemporaryRotation = this->UpdateSceneCapture_GetUpdatedSceneCaptureRotation(CameraManagerTransform.GetRotation().Rotator());
+			// PortalCamera->HiddenComponents.Add(Frame);
+			FVector TemporaryLocation = this->UpdateSceneCapture_GetUpdatedSceneCaptureLocation(CameraManager->GetCameraLocation());
+			FRotator TemporaryRotation = this->UpdateSceneCapture_GetUpdatedSceneCaptureRotation(CameraManager->GetCameraRotation());
 			CurrentRecursion++;
 			
 			UpdateSceneCaptureRecursive(TemporaryLocation, TemporaryRotation);
@@ -409,6 +460,7 @@ void ATeleportPortal::UpdateSceneCaptureRecursive(FVector Location, FRotator Rot
 			LinkedPortal->PortalCamera->CaptureScene();
 			CurrentRecursion = 0;
 		} else if(CurrentRecursion < MaxRecursion) {
+			//PortalCamera->HiddenComponents.Remove(Frame);
 			FVector TemporaryLocation = UpdateSceneCapture_GetUpdatedSceneCaptureLocation(Location);
 			FRotator TemporaryRotation = UpdateSceneCapture_GetUpdatedSceneCaptureRotation(Rotation);
 			CurrentRecursion++;
@@ -418,7 +470,7 @@ void ATeleportPortal::UpdateSceneCaptureRecursive(FVector Location, FRotator Rot
 		} else
 		{
 			FVector TemporaryLocation = UpdateSceneCapture_GetUpdatedSceneCaptureLocation(Location);
-			FRotator TemporaryRotation = UpdateSceneCapture_GetUpdatedSceneCaptureRotation(Rotation);
+			FRotator TemporaryRotation = Rotation;
 			LinkedPortal->PortalCamera->SetWorldLocationAndRotation(TemporaryLocation, TemporaryRotation);
 			PortalPlane->SetVisibility(false);
 			LinkedPortal->PortalCamera->CaptureScene();
@@ -436,7 +488,7 @@ void ATeleportPortal::RemoveTeleportTag(AActor* actorToRemoveTag)
 		}
 }
 
-FVector ATeleportPortal::UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVector OldLocation)
+FVector ATeleportPortal::UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVector PlayerCameraLocation)
 {
 	if (!LinkedPortal)
 	{
@@ -445,12 +497,13 @@ FVector ATeleportPortal::UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVect
 	FTransform actorTransform = GetActorTransform();
 	FVector scale = actorTransform.GetScale3D();
 
-	scale.X *= -1;
-	scale.Y *= -1;
+	scale.X = -scale.X;
+	scale.Y = -scale.Y;
 	actorTransform.SetScale3D(scale);
 	
-	FVector inverseTransformLocation = UKismetMathLibrary::InverseTransformLocation(actorTransform, OldLocation);
+	
 	FTransform LinkedPortalTransform = LinkedPortal->GetActorTransform();
+	FVector inverseTransformLocation = UKismetMathLibrary::InverseTransformLocation(actorTransform, PlayerCameraLocation);
 
 	FVector updatedLocation = UKismetMathLibrary::TransformLocation(LinkedPortalTransform, inverseTransformLocation);
 	return updatedLocation;

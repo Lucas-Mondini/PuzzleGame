@@ -53,6 +53,12 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	int MaxRecursion = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsActivated = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float clipPlanesFactor = -1.0;
 	
 	UPROPERTY(VisibleAnywhere)
 	int CurrentRecursion;

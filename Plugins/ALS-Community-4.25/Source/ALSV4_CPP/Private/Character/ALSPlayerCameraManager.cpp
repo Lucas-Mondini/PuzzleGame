@@ -95,6 +95,12 @@ void AALSPlayerCameraManager::UpdateViewTargetInternal(FTViewTarget& OutVT, floa
 			{
 				OutVT.Target->CalcCamera(DeltaTime, OutVT.POV);
 			}
+
+			if(AALSBaseCharacter* Character = Cast<AALSBaseCharacter>(OutVT.Target))
+			{				
+				OutVT.POV.bConstrainAspectRatio = Character->CameraComponent->bConstrainAspectRatio;
+				OutVT.POV.AspectRatio           = Character->CameraComponent->AspectRatio;
+			}
 		}
 		else
 		{

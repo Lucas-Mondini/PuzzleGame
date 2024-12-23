@@ -39,6 +39,9 @@ public:
 	
 	UPROPERTY(EditAnywhere)
 	class UCameraComponent* CameraComponent;
+
+	UPROPERTY(EditAnywhere)
+	class USphereComponent* ActionRadiusSphere;
 	
 	UFUNCTION(BlueprintCallable, Category = "ALS|Movement")
 	FORCEINLINE class UALSCharacterMovementComponent* GetMyMovementComponent() const
@@ -325,6 +328,9 @@ public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "ALS|Input")
 	void JumpAction(bool bValue);
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "ALS|Input")
+	void InteractAction();
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "ALS|Input")
 	void SprintAction(bool bValue);

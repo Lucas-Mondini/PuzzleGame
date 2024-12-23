@@ -18,8 +18,10 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "Camera/CameraComponent.h"
+#include "Components/SphereComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Puzzle/IInteractable.h"
 
 
 const FName NAME_FP_Camera(TEXT("FP_Camera"));
@@ -45,6 +47,9 @@ AALSBaseCharacter::AALSBaseCharacter(const FObjectInitializer& ObjectInitializer
 
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
 	CameraComponent->SetupAttachment(SpringArmComponent);
+
+	ActionRadiusSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ActionRadiusSphere"));
+	ActionRadiusSphere->SetupAttachment(RootComponent);
 }
 
 void AALSBaseCharacter::PostInitializeComponents()
@@ -593,6 +598,35 @@ bool AALSBaseCharacter::CanSprint() const
 FVector AALSBaseCharacter::GetMovementInput() const
 {
 	return ReplicatedCurrentAcceleration;
+}
+
+void AALSBaseCharacter::InteractAction_Implementation()
+{
+	FVector TraceStart;
+	FVector TraceEnd;
+
+	FVector PlayerEyesLoc;
+	FRotator PlayerEyesRot;
+
+	GetActorEyesViewPoint(PlayerEyesLoc, PlayerEyesRot);
+
+	TraceStart = PlayerEyesLoc;
+	TraceEnd = PlayerEyesLoc + PlayerEyesRot.Vector() * ActionRadiusSphere->GetScaledSphereRadius();
+
+	FCollisionQueryParams TraceParams(FName(TEXT("InteractTrace")), true, this);
+
+	FHitResult InteractHit  = FHitResult(ForceInit);
+
+	bool bHit = GetWorld()->LineTraceSingleByChannel(InteractHit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
+
+	if(bHit)
+	{
+		DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 1, 0, 1);
+	}
+	DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 1, 0, 1);
+	
+	
+	
 }
 
 float AALSBaseCharacter::GetAnimCurveValue(FName CurveName) const

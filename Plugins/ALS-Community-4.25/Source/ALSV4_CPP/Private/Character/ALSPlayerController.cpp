@@ -186,6 +186,14 @@ void AALSPlayerController::CameraTapAction(const FInputActionValue& Value)
 	}
 }
 
+void AALSPlayerController::InteractAction(const FInputActionValue& Value)
+{
+	if(PossessedCharacter)
+	{
+		PossessedCharacter->InteractAction();
+	}
+}
+
 void AALSPlayerController::CameraHeldAction(const FInputActionValue& Value)
 {
 	if (PossessedCharacter)

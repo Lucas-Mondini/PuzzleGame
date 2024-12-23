@@ -58,6 +58,9 @@ protected:
 	void CameraTapAction(const FInputActionValue& Value);
 
 	UFUNCTION()
+	void InteractAction(const FInputActionValue& Value);
+
+	UFUNCTION()
 	void CameraHeldAction(const FInputActionValue& Value);
 
 	UFUNCTION()
