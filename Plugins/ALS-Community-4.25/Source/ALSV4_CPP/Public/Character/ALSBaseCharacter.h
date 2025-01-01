@@ -34,6 +34,9 @@ class ALSV4_CPP_API AALSBaseCharacter : public ACharacter
 public:
 	AALSBaseCharacter(const FObjectInitializer& ObjectInitializer);
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	class UWeightComponent* WeightComponent;
+
 	UPROPERTY(EditAnywhere)
 	class USpringArmComponent* SpringArmComponent;
 	
@@ -358,6 +361,10 @@ public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "ALS|Input")
 	void LookingDirectionAction();
+
+	UFUNCTION(BlueprintCallable, Category = "ALS|Input")
+	virtual void Internal_InteractAction();
+	
 
 protected:
 	/** Ragdoll System */

@@ -9,6 +9,7 @@
 #include "AI/ALSAIController.h"
 #include "Camera/CameraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Puzzle/Pickup.h"
 
 AALSCharacter::AALSCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -23,6 +24,45 @@ AALSCharacter::AALSCharacter(const FObjectInitializer& ObjectInitializer)
 	StaticMesh->SetupAttachment(HeldObjectRoot);
 
 	AIControllerClass = AALSAIController::StaticClass();
+}
+
+void AALSCharacter::Pickup_Implementation(APickup* Item)
+{
+	if(Item)
+	{
+		this->HeldObject = Item;
+		SetOverlayState((EALSOverlayState) Item->PickupType);
+		//attach item to this actor
+		FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
+		Item->AttachToActor(this, AttachmentRules);
+		Item->SetActorRelativeLocation(Item->Offset);
+		//get a copy of the item's mesh and attach it to the character's hand
+		AttachToHand(Item->PickupMesh->GetStaticMesh(), nullptr, nullptr, true, FVector::ZeroVector);
+		Item->SetActorHiddenInGame(true);
+		Item->SetActorEnableCollision(false);
+	}
+}
+
+void AALSCharacter::Internal_InteractAction()
+{
+	//if is holding an object, drop it
+	if(HeldObject)
+	{
+		HeldObject->SetActorHiddenInGame(false);
+		HeldObject->SetActorEnableCollision(true);
+		HeldObject->PickupMesh->SetSimulatePhysics(true);
+		HeldObject->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
+		//set left hand socket location - offset as it's location
+		
+		HeldObject->SetActorLocation(GetMesh()->GetSocketLocation(TEXT("spine_02")) + FVector(0, 100, 0) * GetActorForwardVector());
+		HeldObject = nullptr;
+		SetOverlayState(EALSOverlayState::Default);
+		this->ClearHeldObject();
+		
+	} else
+	{
+		Super::Internal_InteractAction();
+	}
 }
 
 void AALSCharacter::ClearHeldObject()

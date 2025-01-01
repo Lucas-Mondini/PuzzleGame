@@ -21,7 +21,10 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Net/UnrealNetwork.h"
-#include "Puzzle/IInteractable.h"
+#include "Puzzle/Interactable.h"
+#include "Puzzle/WeightComponent.h"
+#include "Puzzle/Pickup.h"
+
 
 
 const FName NAME_FP_Camera(TEXT("FP_Camera"));
@@ -50,6 +53,8 @@ AALSBaseCharacter::AALSBaseCharacter(const FObjectInitializer& ObjectInitializer
 
 	ActionRadiusSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ActionRadiusSphere"));
 	ActionRadiusSphere->SetupAttachment(RootComponent);
+	
+	WeightComponent = CreateDefaultSubobject<UWeightComponent>(TEXT("WeightComponent"));
 }
 
 void AALSBaseCharacter::PostInitializeComponents()
@@ -602,31 +607,7 @@ FVector AALSBaseCharacter::GetMovementInput() const
 
 void AALSBaseCharacter::InteractAction_Implementation()
 {
-	FVector TraceStart;
-	FVector TraceEnd;
-
-	FVector PlayerEyesLoc;
-	FRotator PlayerEyesRot;
-
-	GetActorEyesViewPoint(PlayerEyesLoc, PlayerEyesRot);
-
-	TraceStart = PlayerEyesLoc;
-	TraceEnd = PlayerEyesLoc + PlayerEyesRot.Vector() * ActionRadiusSphere->GetScaledSphereRadius();
-
-	FCollisionQueryParams TraceParams(FName(TEXT("InteractTrace")), true, this);
-
-	FHitResult InteractHit  = FHitResult(ForceInit);
-
-	bool bHit = GetWorld()->LineTraceSingleByChannel(InteractHit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
-
-	if(bHit)
-	{
-		DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 1, 0, 1);
-	}
-	DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 1, 0, 1);
-	
-	
-	
+	Internal_InteractAction();
 }
 
 float AALSBaseCharacter::GetAnimCurveValue(FName CurveName) const
@@ -1497,4 +1478,44 @@ void AALSBaseCharacter::OnRep_OverlayState(EALSOverlayState PrevOverlayState)
 void AALSBaseCharacter::OnRep_VisibleMesh(const USkeletalMesh* PreviousSkeletalMesh)
 {
 	OnVisibleMeshChanged(PreviousSkeletalMesh);
+}
+
+void AALSBaseCharacter::Internal_InteractAction()
+{
+	FVector TraceStart;
+	FVector TraceEnd;
+
+	FVector PlayerEyesLoc;
+	FRotator PlayerEyesRot;
+
+	GetActorEyesViewPoint(PlayerEyesLoc, PlayerEyesRot);
+
+	TraceStart = PlayerEyesLoc;
+	TraceEnd = PlayerEyesLoc + PlayerEyesRot.Vector() * ActionRadiusSphere->GetScaledSphereRadius();
+
+	FCollisionObjectQueryParams Traces;
+	Traces.AddObjectTypesToQuery(ECC_WorldDynamic);
+	Traces.AddObjectTypesToQuery(ECC_Pawn);
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this); // Ignorar o próprio ator
+
+	TArray<FHitResult> InteractHits;
+
+	if (GetWorld()->LineTraceMultiByObjectType(InteractHits, TraceStart, TraceEnd, Traces, QueryParams))
+	{
+		for (const FHitResult& InteractHit : InteractHits)
+		{
+			if (InteractHit.GetActor() != this && InteractHit.GetActor()->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+			{
+				// Call the interact function
+				DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 1, 0, 1);	
+				IInteractable::Execute_Interact(InteractHit.GetActor(), this);
+			}
+		}
+	}
+	else
+	{
+		DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 1, 0, 1);
+	}
 }

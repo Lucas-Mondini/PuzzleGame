@@ -203,7 +203,7 @@ void ATeleportPortal::CheckTeleportPlayer()
 			&& !OverlappingCharacter->Tags.Contains("Unteleportable")) {
 			if (AALSCharacter* castedCharacter = Cast<AALSCharacter>(OverlappingCharacter))
 			{
-				if(IsPlayerCrossingPortal(castedCharacter->GetFirstPersonCameraTarget()))
+				if(IsPlayerCrossingPortal(castedCharacter->GetTransform().GetLocation()))
 				{
 					GEngine->AddOnScreenDebugMessage(1, 5.f, FColor::Red, OverlappingActor->GetName() + " -> Teleported to " + LinkedPortal->GetName());
 					DoTeleportPlayer();

@@ -19,6 +19,13 @@ class ALSV4_CPP_API AALSCharacter : public AALSBaseCharacter
 public:
 	AALSCharacter(const FObjectInitializer& ObjectInitializer);
 
+	UPROPERTY(VisibleAnywhere)
+	APickup* HeldObject;
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Action|Pickup")
+	void Pickup(class APickup* Item);
+	
+	virtual void Internal_InteractAction() override;
+
 	/** Implemented on BP to update held objects */
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "ALS|HeldObject")
 	void UpdateHeldObject();
