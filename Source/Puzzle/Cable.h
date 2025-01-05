@@ -20,7 +20,7 @@ public:
 
 	//linked actor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	AActor* LinkedActor;
+	TArray<AActor*> LinkedActors;
 
 	
 	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, meta=(AllowPrivateAccess = "true"))
@@ -65,6 +65,9 @@ public:
 	
 
 	virtual void OnConstruction(const FTransform& Transform) override;
+
+	UFUNCTION(BlueprintCallable)
+	void CreateSplineMesh();
 
 	UFUNCTION()
 	void PowerCableVisuals();

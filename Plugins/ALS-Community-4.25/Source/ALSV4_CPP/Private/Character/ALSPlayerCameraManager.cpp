@@ -100,6 +100,7 @@ void AALSPlayerCameraManager::UpdateViewTargetInternal(FTViewTarget& OutVT, floa
 			{				
 				OutVT.POV.bConstrainAspectRatio = Character->CameraComponent->bConstrainAspectRatio;
 				OutVT.POV.AspectRatio           = Character->CameraComponent->AspectRatio;
+				OutVT.POV.AspectRatioAxisConstraint = Character->CameraComponent->AspectRatioAxisConstraint;
 			}
 		}
 		else

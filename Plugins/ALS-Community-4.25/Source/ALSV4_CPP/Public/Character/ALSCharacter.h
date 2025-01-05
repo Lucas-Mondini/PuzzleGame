@@ -19,7 +19,10 @@ class ALSV4_CPP_API AALSCharacter : public AALSBaseCharacter
 public:
 	AALSCharacter(const FObjectInitializer& ObjectInitializer);
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS|HeldObject")
+	USceneComponent* DropLocation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	APickup* HeldObject;
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Action|Pickup")
 	void Pickup(class APickup* Item);

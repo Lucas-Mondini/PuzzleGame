@@ -16,6 +16,7 @@ ACable::ACable()
 	PrimaryActorTick.bCanEverTick = true;
 	Spline = CreateDefaultSubobject<USplineComponent>(TEXT("Spline"));
 	Spline->SetupAttachment(RootComponent);
+	Spline->SetMobility(EComponentMobility::Movable);
 
 }
 
@@ -23,7 +24,11 @@ ACable::ACable()
 void ACable::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	CreateSplineMesh();
+}
 
+void ACable::CreateSplineMesh()
+{
 	for (USplineMeshComponent* SplineMesh : SplineMeshes)
 	{
 		if (SplineMesh && SplineMesh->IsValidLowLevel())
@@ -60,6 +65,12 @@ void ACable::OnConstruction(const FTransform& Transform)
 		Spline->GetLocationAndTangentAtSplinePoint(i + 1, EndLocation, EndTangent, ESplineCoordinateSpace::World);
 
 		USplineMeshComponent* SplineMeshComponent = AddSplineMeshComponent();
+		if(!SplineMeshComponent)
+		{
+			continue;
+		}
+		// **Set the mobility to Movable** 
+		SplineMeshComponent->SetMobility(EComponentMobility::Movable);
 		SplineMeshComponent->ForwardAxis = ESplineMeshAxis::Z;
 		SplineMeshComponent->SetStartScale(CableStartScale);
 		SplineMeshComponent->SetEndScale(CableEndScale);
@@ -84,7 +95,6 @@ void ACable::OnConstruction(const FTransform& Transform)
 		
 		
 	}
-	
 }
 
 void ACable::PowerCableVisuals()
@@ -118,6 +128,7 @@ void ACable::PowerCableVisuals()
 void ACable::BeginPlay()
 {
 	Super::BeginPlay();
+	CreateSplineMesh();
 	
 }
 

@@ -73,8 +73,11 @@ void ATeleportPortal::Tick(float DeltaTime)
 
 	if(bIsActivated)
 	{
+		if(IsActorVisibleByCamera())
+		{
+			UpdateSceneCaptureRecursive(FVector(), FRotator());
+		}
 		PreventCameraClipping();
-		UpdateSceneCaptureRecursive(FVector(), FRotator());
 		UpdateViewportSize();
 		CheckTeleportPlayer();
 		SetClipPlanes();
@@ -85,6 +88,100 @@ void ATeleportPortal::Tick(float DeltaTime)
 			PortalPlane->SetVisibility(false);
 		}
 	}
+}
+
+bool ATeleportPortal::IsActorVisibleByCamera()
+{
+	// PlayerController e sanity checks
+    APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+    if (!PC || !PC->PlayerCameraManager)
+    {
+        return false;
+    }
+
+    // Pega a localização da câmera
+    const FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
+
+    // Bounding box do portal
+    const FBox BoundingBox = GetComponentsBoundingBox();
+    const FVector Min = BoundingBox.Min;
+    const FVector Max = BoundingBox.Max;
+
+    // Cantos
+    TArray<FVector> Corners;
+    Corners.Add(FVector(Min.X, Min.Y, Min.Z));
+    Corners.Add(FVector(Min.X, Min.Y, Max.Z));
+    Corners.Add(FVector(Min.X, Max.Y, Min.Z));
+    Corners.Add(FVector(Min.X, Max.Y, Max.Z));
+    Corners.Add(FVector(Max.X, Min.Y, Min.Z));
+    Corners.Add(FVector(Max.X, Min.Y, Max.Z));
+    Corners.Add(FVector(Max.X, Max.Y, Min.Z));
+    Corners.Add(FVector(Max.X, Max.Y, Max.Z));
+
+    // Pega tamanho da tela para conferir projeção (opcional, se quiser só checar se está dentro do screen)
+    int32 ViewportX = 0;
+    int32 ViewportY = 0;
+    PC->GetViewportSize(ViewportX, ViewportY);
+
+    // Vamos iterar em cada canto
+    for (const FVector& Corner : Corners)
+    {
+        // 1) Verificar se esse canto está potencialmente na tela
+        {
+            FVector2D ScreenPos;
+            bool bOnScreen = UGameplayStatics::ProjectWorldToScreen(PC, Corner, ScreenPos);
+            if (!bOnScreen) 
+            {
+                // Se não conseguiu projetar ou algo estranho, ignore esse ponto
+                continue;
+            }
+
+            // Se quiser checar se está dentro do viewport:
+            if (ScreenPos.X < 0.f || ScreenPos.X > ViewportX ||
+                ScreenPos.Y < 0.f || ScreenPos.Y > ViewportY)
+            {
+                // Canto fora do viewport, ignore
+                continue;
+            }
+        }
+
+        // 2) Fazer line trace para verificar se há algo no meio
+        FHitResult HitResult;
+        FCollisionQueryParams Params;
+        Params.bTraceComplex = true;          // Se quiser checar colisor complexo
+        Params.AddIgnoredActor(this);         // Ignorar o próprio portal
+        Params.AddIgnoredActor(PC->GetPawn()); // Ignorar jogador, se necessário
+
+        // Trace
+        bool bHit = GetWorld()->LineTraceSingleByChannel(
+            HitResult,
+            CameraLocation,
+            Corner,
+            ECC_Visibility,
+            Params
+        );
+
+        if (!bHit)
+        {
+            // Nenhum hit - ou seja, não bateu em nada - este canto está completamente livre
+            return true;
+        }
+        else
+        {
+            // Se bateu em algo, vamos checar *o que*:
+            AActor* HitActor = HitResult.GetActor();
+            if (HitActor == this)
+            {
+                // O primeiro colisor que encontrou é do próprio portal (alguma parte do mesh bounding)
+                // => canto visível
+                return true;
+            }
+            // Caso contrário, bateu em algo que não é o portal => canto obstruído
+        }
+    }
+
+    // Se saiu do loop sem retornar, todos os cantos estão obstruídos ou fora do viewport
+    return false;
 }
 
 void ATeleportPortal::CreateDynamicMaterialInstance()
@@ -183,81 +280,104 @@ void ATeleportPortal::UpdateViewportSize()
 
 void ATeleportPortal::CheckTeleportPlayer()
 {
-	if(!LinkedPortal)
+	if (!LinkedPortal)
 	{
 		return;
 	}
+
 	TArray<AActor*> OverlappingActors;
 	Detection->GetOverlappingActors(OverlappingActors);
-	FName teleportedTag = FName("teleported" + UniqueID.ToString());
+
+	FName TeleportedTag = FName("teleported" + UniqueID.ToString());
 	FName LinkedTeleportedTag = FName("teleported" + LinkedPortal->UniqueID.ToString());
 
-	
 	for (AActor* OverlappingActor : OverlappingActors)
 	{
-		ACharacter* OverlappingCharacter = Cast<ACharacter>(OverlappingActor);
-		
-		if (OverlappingCharacter && OverlappingCharacter->IsPlayerControlled() &&
-			!OverlappingCharacter->Tags.Contains(teleportedTag)
-			&& !OverlappingCharacter->Tags.Contains(LinkedTeleportedTag)
-			&& !OverlappingCharacter->Tags.Contains("Unteleportable")) {
-			if (AALSCharacter* castedCharacter = Cast<AALSCharacter>(OverlappingCharacter))
-			{
-				if(IsPlayerCrossingPortal(castedCharacter->GetTransform().GetLocation()))
-				{
-					GEngine->AddOnScreenDebugMessage(1, 5.f, FColor::Red, OverlappingActor->GetName() + " -> Teleported to " + LinkedPortal->GetName());
-					DoTeleportPlayer();
-					OverlappingCharacter->Tags.Add(teleportedTag);
-					OverlappingCharacter->Tags.Add(LinkedTeleportedTag);
-					FTimerHandle TimerHandle;
-					GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([OverlappingCharacter, teleportedTag, LinkedTeleportedTag]()
-					{
-						OverlappingCharacter->Tags.Remove(teleportedTag);
-						OverlappingCharacter->Tags.Remove(LinkedTeleportedTag);
-					}), 0.1f, false);
-				}
-			
-			} else
-			{
-				APlayerCameraManager* CameraManager =  UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
-				FVector CameraLocation = CameraManager ? CameraManager->GetCameraLocation() : FVector();
-				if (AALSCharacter* player = Cast<AALSCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))) {
-					UCameraComponent* CameraComponent =  player->CameraComponent;
-					//CameraLocation = CameraComponent->GetComponentTransform().GetLocation();
-				}
-				if (IsPlayerCrossingPortal(CameraLocation))
-				{
-					DoTeleportPlayer();
-					OverlappingCharacter->Tags.Add(teleportedTag);
-					OverlappingCharacter->Tags.Add(LinkedTeleportedTag);
-					FTimerHandle TimerHandle;
-					GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([OverlappingCharacter, teleportedTag, LinkedTeleportedTag]()
-					{
-						OverlappingCharacter->Tags.Remove(teleportedTag);
-						OverlappingCharacter->Tags.Remove(LinkedTeleportedTag);
-					}), 0.1f, false);
-				}	
-			}
-		} else if(
-			OverlappingActor != this &&
-			!OverlappingActor->Tags.Contains(teleportedTag) &&
-			!OverlappingActor->Tags.Contains(LinkedTeleportedTag) &&
-			!OverlappingActor->Tags.Contains("Unteleportable")
-			) {
-			DoTeleport(OverlappingActor);
-			OverlappingActor->Tags.Add(teleportedTag);
-			OverlappingActor->Tags.Add(LinkedTeleportedTag);
-			FTimerHandle TimerHandle;
-
-			// Usa o GetWorld()->GetTimerManager().SetTimer para agendar a remoção da tag
-			GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([OverlappingActor, teleportedTag, LinkedTeleportedTag]()
-			{
-				OverlappingActor->Tags.Remove(teleportedTag);
-				OverlappingActor->Tags.Remove(LinkedTeleportedTag);
-			}), 0.1f, false);
+		if (ACharacter* OverlappingCharacter = Cast<ACharacter>(OverlappingActor))
+		{
+			HandleCharacterTeleport(OverlappingCharacter, TeleportedTag, LinkedTeleportedTag);
+		}
+		else
+		{
+			HandleActorTeleport(OverlappingActor, TeleportedTag, LinkedTeleportedTag);
 		}
 	}
 
+}
+
+void ATeleportPortal::HandleCharacterTeleport(ACharacter* OverlappingCharacter, FName TeleportedTag,
+	FName LinkedTeleportedTag)
+{
+	if (!OverlappingCharacter || !OverlappingCharacter->IsPlayerControlled())
+	{
+		return;
+	}
+
+	if (OverlappingCharacter->Tags.Contains(TeleportedTag) ||
+		OverlappingCharacter->Tags.Contains(LinkedTeleportedTag) ||
+		OverlappingCharacter->Tags.Contains("Unteleportable"))
+	{
+		return;
+	}
+
+	if (AALSCharacter* CastedCharacter = Cast<AALSCharacter>(OverlappingCharacter))
+	{
+		FVector CharacterLocation = CastedCharacter->GetTransform().GetLocation();
+		FVector Velocity = CastedCharacter->GetVelocity();
+		if (IsPlayerCrossingPortal(CharacterLocation) && IsMovingTowardsPortal(Velocity))
+		{
+			PerformTeleport(CastedCharacter, TeleportedTag, LinkedTeleportedTag);
+		}
+	}
+}
+
+void ATeleportPortal::HandleActorTeleport(AActor* OverlappingActor, FName TeleportedTag, FName LinkedTeleportedTag)
+{
+	if (!OverlappingActor ||
+		OverlappingActor == this ||
+		OverlappingActor->Tags.Contains(TeleportedTag) ||
+		OverlappingActor->Tags.Contains(LinkedTeleportedTag) ||
+		OverlappingActor->Tags.Contains("Unteleportable"))
+	{
+		return;
+	}
+
+	FVector Velocity = OverlappingActor->GetVelocity();
+	if(IsMovingTowardsPortal(Velocity))
+	{
+		DoTeleport(OverlappingActor);
+		AddTeleportTagsWithTimer(OverlappingActor, TeleportedTag, LinkedTeleportedTag);
+	}
+}
+
+void ATeleportPortal::PerformTeleport(AActor* Actor, FName TeleportedTag, FName LinkedTeleportedTag)
+{
+	DoTeleportPlayer();
+	AddTeleportTagsWithTimer(Actor, TeleportedTag, LinkedTeleportedTag);
+}
+
+void ATeleportPortal::AddTeleportTagsWithTimer(AActor* Actor, FName TeleportedTag, FName LinkedTeleportedTag)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	Actor->Tags.Add(TeleportedTag);
+	Actor->Tags.Add(LinkedTeleportedTag);
+
+	FTimerHandle TimerHandle;
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([Actor, TeleportedTag, LinkedTeleportedTag]()
+	{
+		Actor->Tags.Remove(TeleportedTag);
+		Actor->Tags.Remove(LinkedTeleportedTag);
+	}), 0.1f, false);
+}
+
+bool ATeleportPortal::IsMovingTowardsPortal(const FVector& Velocity)
+{
+	FVector ForwardVector = ForwardDirection->GetForwardVector();
+	return FVector::DotProduct(Velocity, ForwardVector) < 0.0f; // Negativo significa movimento contra o ForwardVector
 }
 
 void ATeleportPortal::DoTeleportPlayer()
@@ -275,6 +395,7 @@ void ATeleportPortal::DoTeleportPlayer()
 		player->SetActorTransform(T);
 		const FRotator NewRotation = DoTeleport_GetActorNewRotation(player->GetController()->GetControlRotation());
 		player->GetController()->SetControlRotation(NewRotation);
+		player->SetActorRotation(UpdateActorRotation(player->GetActorRotation()));
 		player->GetMovementComponent()->Velocity = UpdateActorVelocity(player->GetMovementComponent()->Velocity);
 
 		CallSmoothRotation(player, NewRotation);
@@ -316,6 +437,7 @@ void ATeleportPortal::DoTeleport(AActor* actorToTeleport)
 	
 		actorToTeleport->SetActorTransform(T);
 		actorToTeleport->GetRootComponent()->ComponentVelocity =  UpdateActorVelocity(actorToTeleport->GetVelocity());
+		actorToTeleport->SetActorRotation(UpdateActorRotation(actorToTeleport->GetActorRotation()));
 		// player->GetMovementComponent()->Velocity = UpdatePlayerVelocity(player->GetMovementComponent()->Velocity);
 		
 		UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0)->SetGameCameraCutThisFrame();
@@ -324,18 +446,56 @@ void ATeleportPortal::DoTeleport(AActor* actorToTeleport)
 
 FVector ATeleportPortal::UpdateActorVelocity(FVector Velocity)
 {
-	FVector Dir = Velocity;
-	if (LinkedPortal)
+	if (!LinkedPortal || Velocity.IsZero())
 	{
-		Dir.Normalize(0.0001);
-
-		Dir = UKismetMathLibrary::InverseTransformDirection(GetActorTransform(), Dir);
-		Dir = UKismetMathLibrary::MirrorVectorByNormal(Dir, FVector(1, 0, 0));
-		Dir = UKismetMathLibrary::MirrorVectorByNormal(Dir, FVector(0, 1, 0));
-		Dir = UKismetMathLibrary::TransformDirection(LinkedPortal->GetActorTransform(), Dir);
-		return Dir * Velocity.Length();
+		return FVector();
 	}
-	return FVector();
+
+	// Obter os vetores de direção do portal de entrada
+	FVector ForwardVector = ForwardDirection->GetForwardVector();
+	FVector RightVector = ForwardDirection->GetRightVector();
+	FVector UpVector = ForwardDirection->GetUpVector();
+
+	// Projeção da velocidade nos eixos do portal de entrada
+	float ForwardSpeed = FVector::DotProduct(Velocity, ForwardVector);
+	float RightSpeed = FVector::DotProduct(Velocity, RightVector);
+	float UpSpeed = FVector::DotProduct(Velocity, UpVector);
+
+	// Inverter ou ajustar componentes conforme necessário
+	ForwardSpeed = -ForwardSpeed; // Inverter direção para frente, se necessário
+	RightSpeed = -RightSpeed;     // Manter direção lateral
+	UpSpeed = UpSpeed;           // Manter direção para cima
+
+	// Reconstruir a velocidade no espaço do portal de saída
+	FVector NewVelocity = LinkedPortal->ForwardDirection->GetForwardVector() * ForwardSpeed +
+						  LinkedPortal->ForwardDirection->GetRightVector() * RightSpeed +
+						  LinkedPortal->ForwardDirection->GetUpVector() * UpSpeed;
+
+	return NewVelocity;
+}
+
+FRotator ATeleportPortal::UpdateActorRotation(FRotator Rotation)
+{
+	if (!LinkedPortal)
+	{
+		return FRotator();
+	}
+
+	// Obter a rotação do portal de entrada e saída
+	FRotator PortalInRotation = ForwardDirection->GetComponentRotation();
+	FRotator PortalOutRotation = LinkedPortal->ForwardDirection->GetComponentRotation();
+
+	// Calcular o delta entre a rotação do ator e a do portal de entrada
+	FRotator RelativeRotation = Rotation - PortalInRotation;
+
+	// Ajustar para o espaço do portal de saída
+	FRotator NewRotation = PortalOutRotation + RelativeRotation;
+
+	// Inverter o yaw para apontar contra o portal de saída
+	//NewRotation.Yaw += 180.0f;
+	NewRotation.Normalize(); // Normalizar a rotação para evitar ângulos fora do intervalo válido
+
+	return NewRotation;
 }
 
 FVector ATeleportPortal::DoTeleport_GetActorNewLocation(AActor* actor)

@@ -8,8 +8,10 @@
 #include "Engine/StaticMesh.h"
 #include "AI/ALSAIController.h"
 #include "Camera/CameraComponent.h"
+#include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Puzzle/Pickup.h"
+#include "Puzzle/WeightComponent.h"
 
 AALSCharacter::AALSCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -23,6 +25,9 @@ AALSCharacter::AALSCharacter(const FObjectInitializer& ObjectInitializer)
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
 	StaticMesh->SetupAttachment(HeldObjectRoot);
 
+	DropLocation = CreateDefaultSubobject<USceneComponent>(TEXT("DropLocation"));
+	DropLocation->SetupAttachment(RootComponent);
+
 	AIControllerClass = AALSAIController::StaticClass();
 }
 
@@ -31,15 +36,20 @@ void AALSCharacter::Pickup_Implementation(APickup* Item)
 	if(Item)
 	{
 		this->HeldObject = Item;
-		SetOverlayState((EALSOverlayState) Item->PickupType);
-		//attach item to this actor
-		FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
-		Item->AttachToActor(this, AttachmentRules);
+		SetOverlayState((EALSOverlayState)Item->PickupType);
+
+		// Attach item to the character's hand
+		FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, false);
+		Item->AttachToComponent(GetMesh(), AttachmentRules); // Anexa ao socket "hand_r"
+
+		// Apply offset (if needed)
 		Item->SetActorRelativeLocation(Item->Offset);
-		//get a copy of the item's mesh and attach it to the character's hand
 		AttachToHand(Item->PickupMesh->GetStaticMesh(), nullptr, nullptr, true, FVector::ZeroVector);
+
+		// Hide the item and disable collision
 		Item->SetActorHiddenInGame(true);
 		Item->SetActorEnableCollision(false);
+		Item->PickupMesh->SetSimulatePhysics(false);
 	}
 }
 
@@ -50,11 +60,13 @@ void AALSCharacter::Internal_InteractAction()
 	{
 		HeldObject->SetActorHiddenInGame(false);
 		HeldObject->SetActorEnableCollision(true);
-		HeldObject->PickupMesh->SetSimulatePhysics(true);
-		HeldObject->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
+		HeldObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		HeldObject->SetActorRotation(FRotator::ZeroRotator);
 		//set left hand socket location - offset as it's location
 		
-		HeldObject->SetActorLocation(GetMesh()->GetSocketLocation(TEXT("spine_02")) + FVector(0, 100, 0) * GetActorForwardVector());
+		//HeldObject->SetActorLocation(GetMesh()->GetSocketLocation(TEXT("spine_02")) + FVector(0, 100, 0) * GetActorForwardVector() + FVector(0, 0, 50));
+		HeldObject->PickupMesh->SetSimulatePhysics(true);
+		HeldObject->SetActorLocation(DropLocation->GetComponentLocation(), false, nullptr, ETeleportType::None);
 		HeldObject = nullptr;
 		SetOverlayState(EALSOverlayState::Default);
 		this->ClearHeldObject();

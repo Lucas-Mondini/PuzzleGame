@@ -26,7 +26,7 @@ public:
 	APickup();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
-	class USceneComponent* DefaultSceneRoot;
+	class UBoxComponent* BoxCollision;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
 	class UStaticMeshComponent* PickupMesh;
 	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")

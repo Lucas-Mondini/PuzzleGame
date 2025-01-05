@@ -74,6 +74,9 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	UFUNCTION(BlueprintCallable)
+	bool IsActorVisibleByCamera();
+
 private:
 
 	UFUNCTION(BlueprintCallable)
@@ -93,7 +96,22 @@ private:
 	
 	UFUNCTION(BlueprintCallable)
 	void CheckTeleportPlayer();
+
+	UFUNCTION(BlueprintCallable)
+	void HandleCharacterTeleport(class ACharacter* OverlappingCharacter, FName TeleportedTag, FName LinkedTeleportedTag);
+
+	UFUNCTION(BlueprintCallable)
+	void HandleActorTeleport(AActor* OverlappingActor, FName TeleportedTag, FName LinkedTeleportedTag);
+
+	UFUNCTION(BlueprintCallable)
+	void PerformTeleport(AActor* Actor, FName TeleportedTag, FName LinkedTeleportedTag);
 	
+	UFUNCTION(BlueprintCallable)
+	void AddTeleportTagsWithTimer(AActor* Actor, FName TeleportedTag, FName LinkedTeleportedTag);
+
+	UFUNCTION(BlueprintCallable)
+	bool IsMovingTowardsPortal(const FVector& Velocity);
+
 	UFUNCTION(BlueprintCallable)
 	bool IsPlayerCrossingPortal(FVector point);
 
@@ -109,6 +127,8 @@ private:
 	UFUNCTION(BlueprintCallable)
 	FVector UpdateActorVelocity(FVector Velocity);
 	
+	UFUNCTION(BlueprintCallable)
+	FRotator UpdateActorRotation(FRotator Rotation);
 
 
 	FVector DoTeleport_GetActorNewLocation(AActor* actor);

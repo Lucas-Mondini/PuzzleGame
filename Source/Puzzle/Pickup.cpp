@@ -12,11 +12,11 @@ APickup::APickup()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	DefaultSceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot"));
-	RootComponent = DefaultSceneRoot;
+	BoxCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("DefaultSceneRoot"));
 
 	PickupMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PickupMesh"));
-	PickupMesh->SetupAttachment(DefaultSceneRoot);
+	RootComponent = PickupMesh;
+	BoxCollision->SetupAttachment(PickupMesh);
 	PickupMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	PickupMesh->SetCollisionResponseToAllChannels(ECR_Block);
 
