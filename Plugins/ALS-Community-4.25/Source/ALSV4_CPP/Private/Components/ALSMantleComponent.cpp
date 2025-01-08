@@ -83,6 +83,14 @@ void UALSMantleComponent::MantleStart(float MantleHeight, const FALSComponentAnd
 		return;
 	}
 
+	if(AALSCharacter* als = Cast<AALSCharacter>(OwnerCharacter))
+	{
+		if (als->GetOverlayState() == EALSOverlayState::Barrel || als->GetOverlayState() == EALSOverlayState::Box)
+		{
+			return;
+		}
+	}
+
 	if (MantleType != EALSMantleType::LowMantle && OwnerCharacter->IsA(AALSCharacter::StaticClass()))
 	{
 		Cast<AALSCharacter>(OwnerCharacter)->ClearHeldObject();

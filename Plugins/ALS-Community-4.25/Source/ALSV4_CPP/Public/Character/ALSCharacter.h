@@ -23,9 +23,11 @@ public:
 	USceneComponent* DropLocation;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	APickup* HeldObject;
+	AActor* HeldObject;
+	
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Action|Pickup")
-	void Pickup(class APickup* Item);
+	void Pickup(AActor* Item);
+	virtual void Pickup_Implementation(AActor* Item);
 	
 	virtual void Internal_InteractAction() override;
 

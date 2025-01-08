@@ -74,6 +74,9 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float MaxRenderDistance = 5000.0f;
+
 	UFUNCTION(BlueprintCallable)
 	bool IsActorVisibleByCamera();
 

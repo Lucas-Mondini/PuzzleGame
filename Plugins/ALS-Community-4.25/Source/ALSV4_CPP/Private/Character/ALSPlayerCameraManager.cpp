@@ -6,6 +6,9 @@
 
 
 #include "Character/ALSBaseCharacter.h"
+
+#include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Character/ALSPlayerController.h"
 #include "Character/Animation/ALSPlayerCameraBehavior.h"
 #include "Components/ALSDebugComponent.h"

@@ -92,7 +92,7 @@ void ATeleportPortal::Tick(float DeltaTime)
 
 bool ATeleportPortal::IsActorVisibleByCamera()
 {
-	// PlayerController e sanity checks
+    // PlayerController e checagens básicas
     APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
     if (!PC || !PC->PlayerCameraManager)
     {
@@ -107,7 +107,7 @@ bool ATeleportPortal::IsActorVisibleByCamera()
     const FVector Min = BoundingBox.Min;
     const FVector Max = BoundingBox.Max;
 
-    // Cantos
+    // Cantos do bounding box
     TArray<FVector> Corners;
     Corners.Add(FVector(Min.X, Min.Y, Min.Z));
     Corners.Add(FVector(Min.X, Min.Y, Max.Z));
@@ -118,69 +118,40 @@ bool ATeleportPortal::IsActorVisibleByCamera()
     Corners.Add(FVector(Max.X, Max.Y, Min.Z));
     Corners.Add(FVector(Max.X, Max.Y, Max.Z));
 
-    // Pega tamanho da tela para conferir projeção (opcional, se quiser só checar se está dentro do screen)
+    // Tamanho do viewport (largura e altura em pixels)
     int32 ViewportX = 0;
     int32 ViewportY = 0;
     PC->GetViewportSize(ViewportX, ViewportY);
 
-    // Vamos iterar em cada canto
+    // Verifica cada canto
     for (const FVector& Corner : Corners)
     {
-        // 1) Verificar se esse canto está potencialmente na tela
-        {
-            FVector2D ScreenPos;
-            bool bOnScreen = UGameplayStatics::ProjectWorldToScreen(PC, Corner, ScreenPos);
-            if (!bOnScreen) 
-            {
-                // Se não conseguiu projetar ou algo estranho, ignore esse ponto
-                continue;
-            }
+        // 1) Projecta o canto para as coordenadas de tela
+        FVector2D ScreenPos;
+        bool bOnScreen = UGameplayStatics::ProjectWorldToScreen(PC, Corner, ScreenPos);
 
-            // Se quiser checar se está dentro do viewport:
-            if (ScreenPos.X < 0.f || ScreenPos.X > ViewportX ||
-                ScreenPos.Y < 0.f || ScreenPos.Y > ViewportY)
-            {
-                // Canto fora do viewport, ignore
-                continue;
-            }
+        // Se a projeção falhou, ou está fora do viewport, não conta
+        if (!bOnScreen)
+        {
+            continue;
+        }
+        if (ScreenPos.X < 0.f || ScreenPos.X > ViewportX ||
+            ScreenPos.Y < 0.f || ScreenPos.Y > ViewportY)
+        {
+            continue;
         }
 
-        // 2) Fazer line trace para verificar se há algo no meio
-        FHitResult HitResult;
-        FCollisionQueryParams Params;
-        Params.bTraceComplex = true;          // Se quiser checar colisor complexo
-        Params.AddIgnoredActor(this);         // Ignorar o próprio portal
-        Params.AddIgnoredActor(PC->GetPawn()); // Ignorar jogador, se necessário
-
-        // Trace
-        bool bHit = GetWorld()->LineTraceSingleByChannel(
-            HitResult,
-            CameraLocation,
-            Corner,
-            ECC_Visibility,
-            Params
-        );
-
-        if (!bHit)
+        // 2) Verifica se o canto está dentro da distância máxima de render
+        const float DistToCorner = FVector::Dist(CameraLocation, Corner);
+        if (DistToCorner <= MaxRenderDistance)
         {
-            // Nenhum hit - ou seja, não bateu em nada - este canto está completamente livre
+            // Se pelo menos um canto está “na tela” e dentro do range,
+            // consideramos o portal como visível
             return true;
-        }
-        else
-        {
-            // Se bateu em algo, vamos checar *o que*:
-            AActor* HitActor = HitResult.GetActor();
-            if (HitActor == this)
-            {
-                // O primeiro colisor que encontrou é do próprio portal (alguma parte do mesh bounding)
-                // => canto visível
-                return true;
-            }
-            // Caso contrário, bateu em algo que não é o portal => canto obstruído
         }
     }
 
-    // Se saiu do loop sem retornar, todos os cantos estão obstruídos ou fora do viewport
+    // Se nenhum canto passou nos critérios, o portal não está visível/rendereizável
     return false;
 }
 

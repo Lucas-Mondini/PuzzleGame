@@ -10,8 +10,10 @@
 #include "Curves/CurveFloat.h"
 #include "Curves/CurveVector.h"
 
+#include "Engine/World.h"
 #include "TimerManager.h"
 
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
