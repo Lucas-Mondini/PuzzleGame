@@ -3,7 +3,10 @@
 
 #include "TeleportPortal.h"
 
+#include "EngineUtils.h"
+#include "PuzzleCharacter.h"
 #include "Camera/CameraComponent.h"
+#include "Math/Vector.h"
 #include "Character/ALSCharacter.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -73,8 +76,8 @@ void ATeleportPortal::Tick(float DeltaTime)
 
 	if(bIsActivated)
 	{
-		if(IsActorVisibleByCamera())
-		{
+		bIsVisible = IsActorVisibleByCamera();
+		if(bIsVisible || bShouldAlwaysUpdateScreenCapture) {
 			UpdateSceneCaptureRecursive(FVector(), FRotator());
 		}
 		PreventCameraClipping();
@@ -99,7 +102,7 @@ bool ATeleportPortal::IsActorVisibleByCamera()
         return false;
     }
 
-    // Pega a localização da câmera
+    // Pega a localização da câmera do jogador
     const FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
 
     // Bounding box do portal
@@ -117,41 +120,106 @@ bool ATeleportPortal::IsActorVisibleByCamera()
     Corners.Add(FVector(Max.X, Min.Y, Max.Z));
     Corners.Add(FVector(Max.X, Max.Y, Min.Z));
     Corners.Add(FVector(Max.X, Max.Y, Max.Z));
+    const FVector Center = (Min + Max) * 0.5f; // Adiciona o centro do portal
+    Corners.Add(Center);
 
     // Tamanho do viewport (largura e altura em pixels)
     int32 ViewportX = 0;
     int32 ViewportY = 0;
     PC->GetViewportSize(ViewportX, ViewportY);
 
-    // Verifica cada canto
-    for (const FVector& Corner : Corners)
+    // Função lambda para verificar visibilidade a partir de uma localização
+	auto IsVisibleFromLocation = [&](const FVector& ViewLocation, const FVector& ClipPlaneBase, const FVector& ClipPlaneNormal) -> bool
     {
-        // 1) Projecta o canto para as coordenadas de tela
-        FVector2D ScreenPos;
-        bool bOnScreen = UGameplayStatics::ProjectWorldToScreen(PC, Corner, ScreenPos);
+        for (const FVector& Corner : Corners)
+        {
+            // Verifica se o canto está na frente do clip plane (se definido)
+            if (!ClipPlaneBase.IsZero() && !ClipPlaneNormal.IsZero())
+            {
+                FVector PointToPlane = Corner - ClipPlaneBase;
+                if (FVector::DotProduct(PointToPlane, ClipPlaneNormal) < 0)
+                {
+                    continue; // Está atrás do clip plane, ignora
+                }
+            }
 
-        // Se a projeção falhou, ou está fora do viewport, não conta
-        if (!bOnScreen)
-        {
-            continue;
-        }
-        if (ScreenPos.X < 0.f || ScreenPos.X > ViewportX ||
-            ScreenPos.Y < 0.f || ScreenPos.Y > ViewportY)
-        {
-            continue;
-        }
+            // 1) Projecta o canto para as coordenadas de tela
+            FVector2D ScreenPos;
+            bool bOnScreen = UGameplayStatics::ProjectWorldToScreen(PC, Corner, ScreenPos);
 
-        // 2) Verifica se o canto está dentro da distância máxima de render
-        const float DistToCorner = FVector::Dist(CameraLocation, Corner);
-        if (DistToCorner <= MaxRenderDistance)
-        {
-            // Se pelo menos um canto está “na tela” e dentro do range,
-            // consideramos o portal como visível
-            return true;
+            // Se a projeção falhou ou está fora do viewport, ignora
+            if (!bOnScreen || ScreenPos.X < 0.f || ScreenPos.X > ViewportX ||
+                ScreenPos.Y < 0.f || ScreenPos.Y > ViewportY)
+            {
+                continue;
+            }
+
+            // 2) Traça um raio da localização até o canto para verificar obstruções
+            FHitResult HitResult;
+            FCollisionQueryParams QueryParams;
+            QueryParams.AddIgnoredActor(this); // Ignora o próprio portal
+            QueryParams.AddIgnoredActor(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)); // Ignora o jogador
+
+            GetWorld()->LineTraceSingleByChannel(HitResult, ViewLocation, Corner, ECC_Visibility, QueryParams);
+
+            // Se o raio não atingir nada ou atingir o portal, o canto é considerado visível
+        	
+            if (!HitResult.bBlockingHit || HitResult.GetActor() == this)
+            {
+                const float DistToCorner = FVector::Dist(ViewLocation, Corner);
+                if (DistToCorner <= MaxRenderDistance)
+                {
+                    return true;
+                }
+            }
         }
+        return false;
+    };
+
+    // Verifica se a câmera do jogador pode ver o portal
+    if (IsVisibleFromLocation(CameraLocation, FVector::Zero(), FVector::Zero()))
+    {
+        return true;
     }
 
-    // Se nenhum canto passou nos critérios, o portal não está visível/rendereizável
+    // Verifica se algum ATeleportPortal ativo pode ver o portal
+    // for (TActorIterator<ATeleportPortal> PortalItr(GetWorld()); PortalItr; ++PortalItr)
+    // {
+    //     ATeleportPortal* TeleportPortal = *PortalItr;
+    //
+    //     // Verifica se o portal está ativo
+    //     if (!TeleportPortal || !TeleportPortal->LinkedPortal || !TeleportPortal->LinkedPortal->bIsActivated)
+    //     {
+    //         continue;
+    //     }
+    //     if (TeleportPortal->LinkedPortal == this)
+    //     {
+    //         continue;
+    //     }
+    //
+    //     if (!TeleportPortal->LinkedPortal->PortalCamera)
+    //     {
+    //         continue;
+    //     }
+    //
+    //     // Obtém a câmera do portal
+    //     USceneCaptureComponent2D* Camera = TeleportPortal->LinkedPortal->PortalCamera;
+    //
+    //     // Verifica o plano de recorte (clip plane)
+    //     const FVector ClipPlaneBase = Camera->ClipPlaneBase;
+    //     const FVector ClipPlaneNormal = Camera->ClipPlaneNormal;
+    //
+    //     // Obtém a localização da câmera do portal
+    //     const FVector PortalCameraLocation = Camera->GetComponentLocation();
+    //
+    //     // Verifica se a câmera do portal pode ver este portal, considerando o clip plane
+    //     if (IsVisibleFromLocation(PortalCameraLocation, ClipPlaneBase, ClipPlaneNormal))
+    //     {
+    //         return true;
+    //     }
+    // }
+
+    // Se nenhum ator ou câmera puder ver o portal, retorna false
     return false;
 }
 

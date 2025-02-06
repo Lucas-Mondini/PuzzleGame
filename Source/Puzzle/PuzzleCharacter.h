@@ -22,7 +22,21 @@ public:
 
 	virtual void Internal_InteractAction() override;
 
+	virtual void Tick(float DeltaSeconds) override;
+
+	UPROPERTY(BlueprintReadWrite)
+	FRotator InitialControllerRotation;
+
+	UPROPERTY(BlueprintReadWrite)
+	FRotator InitialWorldRotation;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	class UWeightComponent* WeightComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Interactable")
+	AActor* ActorToInteract;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void SmoothOrientation(FRotator newControlRotation);
 	
 };

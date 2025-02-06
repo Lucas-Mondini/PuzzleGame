@@ -43,6 +43,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
 	FVector Offset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
+	FTransform InitialTransform;
 	
 	
 

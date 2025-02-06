@@ -38,6 +38,8 @@ void APickup::Interact_Implementation(AActor* Interactor)
 void APickup::BeginPlay()
 {
 	Super::BeginPlay();
+
+	InitialTransform = GetActorTransform();
 	
 }
 

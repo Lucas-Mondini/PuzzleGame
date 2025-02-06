@@ -58,6 +58,12 @@ public:
 	bool bIsActivated = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsVisible = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bShouldAlwaysUpdateScreenCapture = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float clipPlanesFactor = -1.0;
 	
 	UPROPERTY(VisibleAnywhere)

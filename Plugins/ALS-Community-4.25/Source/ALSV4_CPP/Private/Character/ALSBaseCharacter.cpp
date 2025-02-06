@@ -186,7 +186,7 @@ void AALSBaseCharacter::RagdollStart()
 	SetMovementState(EALSMovementState::Ragdoll);
 
 	// Step 2: Disable capsule collision and enable mesh physics simulation starting from the pelvis.
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	//GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionObjectType(ECC_PhysicsBody);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetAllBodiesBelowSimulatePhysics(NAME_Pelvis, true, true);

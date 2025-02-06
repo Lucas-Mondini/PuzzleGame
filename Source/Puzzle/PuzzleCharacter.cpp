@@ -6,7 +6,9 @@
 #include "Interactable.h"
 #include "Pickup.h"
 #include "WeightComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 APuzzleCharacter::APuzzleCharacter(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -54,44 +56,68 @@ void APuzzleCharacter::Internal_InteractAction()
 		HeldObject = nullptr;
 		SetOverlayState(EALSOverlayState::Default);
 		this->ClearHeldObject();
+		//add player velocity to the item
+		//pickupAsHeld->PickupMesh->AddImpulse(GetVelocity() * 1000, NAME_None, true);
 		
-	} else
+	} else if (ActorToInteract)
 	{
-		FVector TraceStart;
-		FVector TraceEnd;
-
-		FVector PlayerEyesLoc;
-		FRotator PlayerEyesRot;
-
-		GetActorEyesViewPoint(PlayerEyesLoc, PlayerEyesRot);
-
-		TraceStart = PlayerEyesLoc;
-		TraceEnd = PlayerEyesLoc + PlayerEyesRot.Vector() * ActionRadiusSphere->GetScaledSphereRadius();
-
-		FCollisionObjectQueryParams Traces;
-		Traces.AddObjectTypesToQuery(ECC_WorldDynamic);
-		Traces.AddObjectTypesToQuery(ECC_Pawn);
-
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(this); // Ignorar o próprio ator
-
-		TArray<FHitResult> InteractHits;
-
-		if (GetWorld()->LineTraceMultiByObjectType(InteractHits, TraceStart, TraceEnd, Traces, QueryParams))
+		if (ActorToInteract->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
-			for (const FHitResult& InteractHit : InteractHits)
-			{
-				if (InteractHit.GetActor() != this && InteractHit.GetActor()->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
-				{
-					// Call the interact function
-					DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 1, 0, 1);	
-					IInteractable::Execute_Interact(InteractHit.GetActor(), this);
-				}
-			}
+			IInteractable::Execute_Interact(ActorToInteract, this);
 		}
-		else
-		{
-			DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 1, 0, 1);
-		}	
 	}
 }
+
+void APuzzleCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	FVector TraceStart;
+	FVector TraceEnd;
+
+	FVector PlayerEyesLoc;
+	FRotator PlayerEyesRot;
+
+	GetActorEyesViewPoint(PlayerEyesLoc, PlayerEyesRot);
+
+	TraceStart = PlayerEyesLoc;
+	TraceEnd = PlayerEyesLoc + PlayerEyesRot.Vector() * ActionRadiusSphere->GetScaledSphereRadius();
+
+	FCollisionObjectQueryParams Traces;
+	Traces.AddObjectTypesToQuery(ECC_WorldDynamic);
+	Traces.AddObjectTypesToQuery(ECC_Pawn);
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this); // Ignorar o próprio ator
+
+	TArray<FHitResult> InteractHits;
+
+	bool hittedAnInteractable = false;
+	if (GetWorld()->LineTraceMultiByObjectType(InteractHits, TraceStart, TraceEnd, Traces, QueryParams))
+	{
+		for (const FHitResult& InteractHit : InteractHits)
+		{
+			if (InteractHit.GetActor() != this && InteractHit.GetActor()->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+			{
+				if (ActorToInteract != InteractHit.GetActor())
+				{
+					if (ActorToInteract)
+					{
+						IInteractable::Execute_StopLooking(ActorToInteract);
+					}
+					ActorToInteract = InteractHit.GetActor();
+					IInteractable::Execute_Looked(ActorToInteract);
+				}
+				hittedAnInteractable = true;
+				break;
+			}
+		}
+	}
+
+	if(!hittedAnInteractable && ActorToInteract)
+	{
+		IInteractable::Execute_StopLooking(ActorToInteract);
+		ActorToInteract = nullptr;
+	}
+}
+

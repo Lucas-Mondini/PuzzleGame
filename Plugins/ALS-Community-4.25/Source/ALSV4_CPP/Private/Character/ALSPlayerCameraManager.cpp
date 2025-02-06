@@ -80,6 +80,11 @@ void AALSPlayerCameraManager::UpdateViewTargetInternal(FTViewTarget& OutVT, floa
 {
 	// Partially taken from base class
 
+	if (OutVT.POV.Rotation.Pitch != 0.0f)
+	{
+		OutVT.POV.Rotation.Pitch = 0.0f; // Trava o Roll
+	}
+	
 	if (OutVT.Target)
 	{
 		FVector OutLocation;
@@ -100,10 +105,17 @@ void AALSPlayerCameraManager::UpdateViewTargetInternal(FTViewTarget& OutVT, floa
 			}
 
 			if(AALSBaseCharacter* Character = Cast<AALSBaseCharacter>(OutVT.Target))
-			{				
-				OutVT.POV.bConstrainAspectRatio = Character->CameraComponent->bConstrainAspectRatio;
-				OutVT.POV.AspectRatio           = Character->CameraComponent->AspectRatio;
-				OutVT.POV.AspectRatioAxisConstraint = Character->CameraComponent->AspectRatioAxisConstraint;
+			{
+				if(true)
+				{
+					OutVT.POV.bConstrainAspectRatio = Character->CameraComponent->bConstrainAspectRatio;
+					OutVT.POV.AspectRatio           = Character->CameraComponent->AspectRatio;
+					OutVT.POV.AspectRatioAxisConstraint = Character->CameraComponent->AspectRatioAxisConstraint;
+					OutVT.POV.PostProcessSettings = Character->CameraComponent->PostProcessSettings;
+
+					VisibleOutVT = OutVT;
+					bUpdatePostProcessSettings = false;
+				}
 			}
 		}
 		else

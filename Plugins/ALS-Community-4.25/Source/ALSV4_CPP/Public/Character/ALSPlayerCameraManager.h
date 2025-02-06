@@ -50,6 +50,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "ALS|Camera")
 	TObjectPtr<USkeletalMeshComponent> CameraBehavior = nullptr;
 
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "ALS|Camera")
+	FTViewTarget VisibleOutVT;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "ALS|Camera")
+	bool bUpdatePostProcessSettings = true;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "ALS|Camera")
 	FVector RootLocation;

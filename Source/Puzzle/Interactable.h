@@ -24,4 +24,10 @@ class PUZZLE_API IInteractable
 public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category="Interact")
 	void Interact(AActor* Interactor);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category="Interact")
+	void Looked();
+	
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category="Interact")
+	void StopLooking();
 };
