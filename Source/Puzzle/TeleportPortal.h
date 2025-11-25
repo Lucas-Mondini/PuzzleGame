@@ -69,6 +69,9 @@ public:
 	UPROPERTY(VisibleAnywhere)
 	int CurrentRecursion;
 
+	UPROPERTY(EditAnywhere)
+	float MaterialResolutionFactor = 0.5;
+
 	UPROPERTY(VisibleAnywhere)
 	FGuid UniqueID;
 
@@ -87,6 +90,11 @@ public:
 	bool IsActorVisibleByCamera();
 
 private:
+
+	APlayerController* CachedPlayerController = nullptr;
+	// Se o portal for estático, você pode também armazenar os cantos:
+	TArray<FVector> CachedCorners;
+	bool bCornersCached = false;
 
 	UFUNCTION(BlueprintCallable)
 	void CreateDynamicMaterialInstance();
