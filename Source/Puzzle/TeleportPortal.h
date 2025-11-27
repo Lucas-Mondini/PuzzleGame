@@ -60,6 +60,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsVisible = true;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Isolated Portals")
+	bool bShouldCaptureAsync = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bShouldAlwaysUpdateScreenCapture = false;
 
@@ -98,6 +101,7 @@ public:
 
 private:
 
+	UPROPERTY()
 	APlayerController* CachedPlayerController = nullptr;
 	// Se o portal for estático, você pode também armazenar os cantos:
 	TArray<FVector> CachedCorners;

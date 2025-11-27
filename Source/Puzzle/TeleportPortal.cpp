@@ -661,7 +661,11 @@ void ATeleportPortal::UpdateSceneCaptureRecursive(FVector Location, FRotator Rot
     
 	// Atualiza a câmera e captura a cena
 	LinkedPortal->PortalCamera->SetWorldLocationAndRotation(TemporaryLocation, TemporaryRotation);
-	LinkedPortal->PortalCamera->CaptureScene();
+	if (bShouldCaptureAsync) {
+		LinkedPortal->PortalCamera->CaptureSceneDeferred();
+	} else {
+		LinkedPortal->PortalCamera->CaptureScene();
+	}
     
 	// Restaura a visibilidade e recursão
 	if (CurrentRecursion == MaxRecursion) {
