@@ -85,6 +85,13 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float MaxRenderDistance = 5000.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float DistanceToRenderFactor = 2000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int TickAccumulatorToDistance = 0;
+
+	
 
 	UFUNCTION(BlueprintCallable)
 	bool IsActorVisibleByCamera();
@@ -95,6 +102,9 @@ private:
 	// Se o portal for estático, você pode também armazenar os cantos:
 	TArray<FVector> CachedCorners;
 	bool bCornersCached = false;
+
+	UFUNCTION(BlueprintCallable)
+	bool CalculatePortalTickAndCheckIfShouldRender();
 
 	UFUNCTION(BlueprintCallable)
 	void CreateDynamicMaterialInstance();
@@ -154,7 +164,7 @@ private:
 	
 
 	FVector UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVector OldLocation);
-	FRotator UpdateSceneCapture_GetUpdatedSceneCaptureRotation(FRotator OldRotation);
+	FRotator UpdateSceneCapture_GetUpdatedSceneCaptureRotation(const FRotator& OldRotation);
 
 	UFUNCTION(BlueprintCallable)
 	void UpdateSceneCaptureRecursive(FVector Location, FRotator Rotation);

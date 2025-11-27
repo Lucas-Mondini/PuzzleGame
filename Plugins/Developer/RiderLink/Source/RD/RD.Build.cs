@@ -19,7 +19,7 @@ public class RD : ModuleRules
 #endif
 
 #if UE_4_22_OR_LATER
-		CppStandard = CppStandardVersion.Cpp17;
+		CppStandard = CppStandardVersion.Cpp20;
 #endif
 
 #if UE_4_22_OR_LATER
@@ -29,7 +29,8 @@ public class RD : ModuleRules
 #endif
 
 #if UE_4_24_OR_LATER
-		ShadowVariableWarningLevel = WarningLevel.Off;
+		// ShadowVariableWarningLevel = WarningLevel.Off;
+		CppCompileWarningSettings.ShadowVariableWarningLevel = WarningLevel.Off;
 		bUseUnity = false;
 #else
 		bEnableShadowVariableWarnings = false;

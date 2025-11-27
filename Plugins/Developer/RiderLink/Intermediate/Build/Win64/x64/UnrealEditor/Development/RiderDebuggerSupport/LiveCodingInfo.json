@@ -2,6 +2,7 @@
 	"RemapUnityFiles": 
 	{
 		"Module.RiderDebuggerSupport.cpp.obj": [
+			"PerModuleInline.gen.cpp.obj",
 			"BlueprintStackGetter.cpp.obj",
 			"DebugLogger.cpp.obj",
 			"RiderDebuggerSupport.cpp.obj",

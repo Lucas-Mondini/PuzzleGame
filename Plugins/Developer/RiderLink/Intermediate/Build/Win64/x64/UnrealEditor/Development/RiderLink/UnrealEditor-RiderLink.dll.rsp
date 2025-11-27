@@ -1,5 +1,4 @@
-/MANIFEST:EMBED
-/MANIFESTINPUT:"..\Build\Windows\Resources\Default-Win64.manifest"
+/MANIFEST:NO
 /NOLOGO
 /DEBUG:FULL
 /errorReport:prompt
@@ -21,9 +20,9 @@
 /ALTERNATENAME:__imp___std_init_once_complete=__imp_InitOnceComplete
 /DELAYLOAD:"d3d12.dll"
 /DELAYLOAD:"DBGHELP.DLL"
-/LIBPATH:"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\lib\x64"
-/LIBPATH:"C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\ucrt\x64"
-/LIBPATH:"C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x64"
+/LIBPATH:"C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.38.33130/lib/x64"
+/LIBPATH:"C:/Program Files (x86)/Windows Kits/10/lib/10.0.22621.0/ucrt/x64"
+/LIBPATH:"C:/Program Files (x86)/Windows Kits/10/lib/10.0.22621.0/um/x64"
 /NODEFAULTLIB:"LIBCMT"
 /NODEFAULTLIB:"LIBCPMT"
 /NODEFAULTLIB:"LIBCMTD"
@@ -35,10 +34,12 @@
 /NODEFAULTLIB:"LIBCD"
 /NODEFAULTLIB:"LIBCPD"
 /FUNCTIONPADMIN:6
-"F:\dev\unreal\Puzzle\Plugins\Developer\RiderLink\Intermediate\Build\Win64\x64\UnrealEditor\Development\RiderLink\Module.RiderLink.cpp.obj"
-"F:\dev\unreal\Puzzle\Plugins\Developer\RiderLink\Intermediate\Build\Win64\x64\UnrealEditor\Development\RiderLink\Default.rc2.res"
-"..\Intermediate\Build\Win64\x64\UnrealEditor\Development\Core\UnrealEditor-Core.lib"
-"F:\dev\unreal\Puzzle\Plugins\Developer\RiderLink\Intermediate\Build\Win64\x64\UnrealEditor\Development\RD\UnrealEditor-RD.lib"
+/NOIMPLIB
+/NOEXP
+"F:/dev/unreal/Puzzle/Plugins/Developer/RiderLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/RiderLink/Module.RiderLink.cpp.obj"
+"F:/dev/unreal/Puzzle/Plugins/Developer/RiderLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/RiderLink/Default.rc2.res"
+"../Intermediate/Build/Win64/x64/UnrealEditor/Development/Core/UnrealEditor-Core.lib"
+"F:/dev/unreal/Puzzle/Plugins/Developer/RiderLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/RD/UnrealEditor-RD.lib"
 "delayimp.lib"
 "wininet.lib"
 "rpcrt4.lib"
@@ -64,7 +65,6 @@
 "synchronization.lib"
 "dwmapi.lib"
 "imm32.lib"
-/OUT:"F:\dev\unreal\Puzzle\Plugins\Developer\RiderLink\Binaries\Win64\UnrealEditor-RiderLink.dll"
-/IMPLIB:"F:\dev\unreal\Puzzle\Plugins\Developer\RiderLink\Intermediate\Build\Win64\x64\UnrealEditor\Development\RiderLink\UnrealEditor-RiderLink.sup.lib"
-/PDB:"F:\dev\unreal\Puzzle\Plugins\Developer\RiderLink\Binaries\Win64\UnrealEditor-RiderLink.pdb"
+/OUT:"F:/dev/unreal/Puzzle/Plugins/Developer/RiderLink/Binaries/Win64/UnrealEditor-RiderLink.dll"
+/PDB:"F:/dev/unreal/Puzzle/Plugins/Developer/RiderLink/Binaries/Win64/UnrealEditor-RiderLink.pdb"
 /ignore:4078
