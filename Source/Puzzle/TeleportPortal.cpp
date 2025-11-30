@@ -78,16 +78,7 @@ void ATeleportPortal::Tick(float DeltaTime)
 	{
 		bIsVisible = IsActorVisibleByCamera();
 		if((bIsVisible || bShouldAlwaysUpdateScreenCapture) && CalculatePortalTickAndCheckIfShouldRender()) {
-			const double StartTime = FPlatformTime::Seconds();
 			UpdateSceneCaptureRecursive(FVector(), FRotator());
-			const double EndTime = FPlatformTime::Seconds();
-			const double ElapsedMs = (EndTime - StartTime) * 1000.0;
-
-			if (GEngine)
-			{
-				GEngine->AddOnScreenDebugMessage(19,0.05f,FColor::Green,FString::Printf(TEXT("Capture Time: %.6f ms"), ElapsedMs));
-			}
-
 		}
 		PreventCameraClipping();
 		UpdateViewportSize();
@@ -100,85 +91,6 @@ void ATeleportPortal::Tick(float DeltaTime)
 			PortalPlane->SetVisibility(false);
 		}
 	}
-}
-
-bool ATeleportPortal::IsActorVisibleByCamera()
-{
-    // Cache do PlayerController:
-    if (!CachedPlayerController)
-    {
-        CachedPlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-    }
-    APlayerController* PC = CachedPlayerController;
-    if (!PC || !PC->PlayerCameraManager)
-    {
-        return false;
-    }
-    
-    const FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
-    
-    // Se o portal não se move, cache o bounding box uma vez
-    if (!bCornersCached)
-    {
-        const FBox BoundingBox = GetComponentsBoundingBox();
-        const FVector Min = BoundingBox.Min;
-        const FVector Max = BoundingBox.Max;
-        CachedCorners.Empty();
-        CachedCorners.Add(FVector(Min.X, Min.Y, Min.Z));
-        CachedCorners.Add(FVector(Min.X, Min.Y, Max.Z));
-        CachedCorners.Add(FVector(Min.X, Max.Y, Min.Z));
-        CachedCorners.Add(FVector(Min.X, Max.Y, Max.Z));
-        CachedCorners.Add(FVector(Max.X, Min.Y, Min.Z));
-        CachedCorners.Add(FVector(Max.X, Min.Y, Max.Z));
-        CachedCorners.Add(FVector(Max.X, Max.Y, Min.Z));
-        CachedCorners.Add(FVector(Max.X, Max.Y, Max.Z));
-        // Opcional: incluir o centro
-        CachedCorners.Add((Min + Max) * 0.5f);
-        bCornersCached = true;
-    }
-
-    // Obter tamanho do viewport (você pode também cacheá-lo se souber quando muda)
-    int32 ViewportX = 0, ViewportY = 0;
-    PC->GetViewportSize(ViewportX, ViewportY);
-
-    // Função lambda para verificar a visibilidade (utiliza CachedCorners)
-    auto IsVisibleFromLocation = [&](const FVector& ViewLocation, const FVector& ClipPlaneBase, const FVector& ClipPlaneNormal) -> bool
-    {
-        for (const FVector& Corner : CachedCorners)
-        {
-            // Se houver clip plane, ignora cantos atrás dele
-            if (!ClipPlaneBase.IsZero() && !ClipPlaneNormal.IsZero())
-            {
-                if (FVector::DotProduct(Corner - ClipPlaneBase, ClipPlaneNormal) < 0)
-                {
-                    continue;
-                }
-            }
-            FVector2D ScreenPos;
-            bool bOnScreen = UGameplayStatics::ProjectWorldToScreen(PC, Corner, ScreenPos);
-            if (!bOnScreen || ScreenPos.X < 0.f || ScreenPos.X > ViewportX ||
-                ScreenPos.Y < 0.f || ScreenPos.Y > ViewportY)
-            {
-                continue;
-            }
-            // Traça um raio para verificar obstruções
-            FHitResult HitResult;
-            FCollisionQueryParams QueryParams;
-            QueryParams.AddIgnoredActor(this);
-            QueryParams.AddIgnoredActor(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
-            GetWorld()->LineTraceSingleByChannel(HitResult, ViewLocation, Corner, ECC_Visibility, QueryParams);
-            if (!HitResult.bBlockingHit || HitResult.GetActor() == this)
-            {
-                if (FVector::Dist(ViewLocation, Corner) <= MaxRenderDistance)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    };
-
-    return IsVisibleFromLocation(CameraLocation, FVector::Zero(), FVector::Zero());
 }
 
 bool ATeleportPortal::CalculatePortalTickAndCheckIfShouldRender()
@@ -206,6 +118,137 @@ bool ATeleportPortal::CalculatePortalTickAndCheckIfShouldRender()
 	return false;
 }
 
+
+bool ATeleportPortal::IsActorVisibleByCamera()
+{
+    // PlayerController e checagens básicas
+    APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+    if (!PC || !PC->PlayerCameraManager)
+    {
+        return false;
+    }
+
+    // Pega a localização da câmera do jogador
+    const FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
+
+    // Bounding box do portal
+    const FBox BoundingBox = GetComponentsBoundingBox();
+    const FVector Min = BoundingBox.Min;
+    const FVector Max = BoundingBox.Max;
+
+    // Cantos do bounding box
+    TArray<FVector> Corners;
+    Corners.Add(FVector(Min.X, Min.Y, Min.Z));
+    Corners.Add(FVector(Min.X, Min.Y, Max.Z));
+    Corners.Add(FVector(Min.X, Max.Y, Min.Z));
+    Corners.Add(FVector(Min.X, Max.Y, Max.Z));
+    Corners.Add(FVector(Max.X, Min.Y, Min.Z));
+    Corners.Add(FVector(Max.X, Min.Y, Max.Z));
+    Corners.Add(FVector(Max.X, Max.Y, Min.Z));
+    Corners.Add(FVector(Max.X, Max.Y, Max.Z));
+    const FVector Center = (Min + Max) * 0.5f; // Adiciona o centro do portal
+    Corners.Add(Center);
+
+    // Tamanho do viewport (largura e altura em pixels)
+    int32 ViewportX = 0;
+    int32 ViewportY = 0;
+    PC->GetViewportSize(ViewportX, ViewportY);
+
+    // Função lambda para verificar visibilidade a partir de uma localização
+	auto IsVisibleFromLocation = [&](const FVector& ViewLocation, const FVector& ClipPlaneBase, const FVector& ClipPlaneNormal) -> bool
+    {
+        for (const FVector& Corner : Corners)
+        {
+            // Verifica se o canto está na frente do clip plane (se definido)
+            if (!ClipPlaneBase.IsZero() && !ClipPlaneNormal.IsZero())
+            {
+                FVector PointToPlane = Corner - ClipPlaneBase;
+                if (FVector::DotProduct(PointToPlane, ClipPlaneNormal) < 0)
+                {
+                    continue; // Está atrás do clip plane, ignora
+                }
+            }
+
+            // 1) Projecta o canto para as coordenadas de tela
+            FVector2D ScreenPos;
+            bool bOnScreen = UGameplayStatics::ProjectWorldToScreen(PC, Corner, ScreenPos);
+
+            // Se a projeção falhou ou está fora do viewport, ignora
+            if (!bOnScreen || ScreenPos.X < 0.f || ScreenPos.X > ViewportX ||
+                ScreenPos.Y < 0.f || ScreenPos.Y > ViewportY)
+            {
+                continue;
+            }
+
+            // 2) Traça um raio da localização até o canto para verificar obstruções
+            FHitResult HitResult;
+            FCollisionQueryParams QueryParams;
+            QueryParams.AddIgnoredActor(this); // Ignora o próprio portal
+            QueryParams.AddIgnoredActor(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)); // Ignora o jogador
+
+            GetWorld()->LineTraceSingleByChannel(HitResult, ViewLocation, Corner, ECC_Visibility, QueryParams);
+
+            // Se o raio não atingir nada ou atingir o portal, o canto é considerado visível
+        	
+            if (!HitResult.bBlockingHit || HitResult.GetActor() == this)
+            {
+                const float DistToCorner = FVector::Dist(ViewLocation, Corner);
+                if (DistToCorner <= MaxRenderDistance)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // Verifica se a câmera do jogador pode ver o portal
+    if (IsVisibleFromLocation(CameraLocation, FVector::Zero(), FVector::Zero()))
+    {
+        return true;
+    }
+
+    // Verifica se algum ATeleportPortal ativo pode ver o portal
+    // for (TActorIterator<ATeleportPortal> PortalItr(GetWorld()); PortalItr; ++PortalItr)
+    // {
+    //     ATeleportPortal* TeleportPortal = *PortalItr;
+    //
+    //     // Verifica se o portal está ativo
+    //     if (!TeleportPortal || !TeleportPortal->LinkedPortal || !TeleportPortal->LinkedPortal->bIsActivated)
+    //     {
+    //         continue;
+    //     }
+    //     if (TeleportPortal->LinkedPortal == this)
+    //     {
+    //         continue;
+    //     }
+    //
+    //     if (!TeleportPortal->LinkedPortal->PortalCamera)
+    //     {
+    //         continue;
+    //     }
+    //
+    //     // Obtém a câmera do portal
+    //     USceneCaptureComponent2D* Camera = TeleportPortal->LinkedPortal->PortalCamera;
+    //
+    //     // Verifica o plano de recorte (clip plane)
+    //     const FVector ClipPlaneBase = Camera->ClipPlaneBase;
+    //     const FVector ClipPlaneNormal = Camera->ClipPlaneNormal;
+    //
+    //     // Obtém a localização da câmera do portal
+    //     const FVector PortalCameraLocation = Camera->GetComponentLocation();
+    //
+    //     // Verifica se a câmera do portal pode ver este portal, considerando o clip plane
+    //     if (IsVisibleFromLocation(PortalCameraLocation, ClipPlaneBase, ClipPlaneNormal))
+    //     {
+    //         return true;
+    //     }
+    // }
+
+    // Se nenhum ator ou câmera puder ver o portal, retorna false
+    return false;
+}
+
 void ATeleportPortal::CreateDynamicMaterialInstance()
 {
 	if (MaterialParentToDynamic)
@@ -214,20 +257,17 @@ void ATeleportPortal::CreateDynamicMaterialInstance()
 		Portal_MAT = DynamicMaterial;
 		PortalPlane->SetMaterial(0, Portal_MAT);
 
-		if (GEngine)
+		if(GEngine)
 		{
 			if (ULocalPlayer* LocalPlayer = GEngine->GetFirstGamePlayer(GetWorld()))
 			{
 				if (LocalPlayer->ViewportClient)
 				{
 					auto size = LocalPlayer->ViewportClient->Viewport->GetSizeXY();
-					// Aplicar um fator de escala (por exemplo, 0.75 para 75% da resolução)
-					int32 ScaledX = FMath::RoundToInt(size.X * MaterialResolutionFactor);
-					int32 ScaledY = FMath::RoundToInt(size.Y * MaterialResolutionFactor);
-                    
 					Portal_RT = NewObject<UTextureRenderTarget2D>();
-					Portal_RT->InitAutoFormat(ScaledX, ScaledY);
+					Portal_RT->InitAutoFormat(size.X, size.Y);
 					Portal_RT->UpdateResourceImmediate(true);
+
 					Portal_RT->bAutoGenerateMips = false;
 				}
 			}
@@ -257,60 +297,51 @@ void ATeleportPortal::SetClipPlanes()
 {
 	if (LinkedPortal)
 	{
-		FVector ForwardVec = ForwardDirection->GetForwardVector();
-		FVector ClipPlaneBase = PortalPlane->GetComponentTransform().GetLocation() + ForwardVec * clipPlanesFactor;
-        
+		FVector ClipPlaneBase = PortalPlane->GetComponentTransform().GetLocation() +
+			ForwardDirection->GetForwardVector() * clipPlanesFactor;
+		
 		PortalCamera->bEnableClipPlane = true;
 		PortalCamera->ClipPlaneBase = ClipPlaneBase;
-		PortalCamera->ClipPlaneNormal = ForwardVec;
+		PortalCamera->ClipPlaneNormal = ForwardDirection->GetForwardVector();		
 	}
 }
-
 
 void ATeleportPortal::PreventCameraClipping()
 {
-	APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
+	APlayerCameraManager* CameraManager =  UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
 	FVector CameraLocation = CameraManager->GetCameraLocation();
-	FVector PortalLoc = GetActorLocation();
-	FVector ForwardVec = ForwardDirection->GetForwardVector();
-    
-	// Cálculo do dot product
-	double dot = FVector::DotProduct(CameraLocation - PortalLoc, ForwardVec);
-    
-	if (dot < 200 && dot > -5)
-	{
-		float ClampedValue = FMath::Clamp((1 - dot / 50.0f) * -5.0f, -5.0f, 0.0f);
-		PortalPlane->SetRelativeLocation(FVector(ClampedValue, 0, 146.0f));
+	
+	
+	double dot = UKismetMathLibrary::Dot_VectorVector(CameraLocation - GetActorLocation(), ForwardDirection->GetForwardVector());
+	
+	if (dot < 200 && dot > -5) {
+		PortalPlane->SetRelativeLocation(
+			FVector(UKismetMathLibrary::Clamp((1 - dot/50) * -5, -5, 0), 0, 146.0)
+			);
+	} else {
+		PortalPlane->SetRelativeLocation(FVector(0, 0, 146.0));
 	}
-	else
-	{
-		PortalPlane->SetRelativeLocation(FVector(0, 0, 146.0f));
-	}
+	
 }
-
 
 void ATeleportPortal::UpdateViewportSize()
 {
-	if (GEngine)
+	if(GEngine)
 	{
 		if (ULocalPlayer* LocalPlayer = GEngine->GetFirstGamePlayer(GetWorld()))
 		{
 			if (LocalPlayer->ViewportClient && Portal_RT)
 			{
-				FVector2D NewSize = LocalPlayer->ViewportClient->Viewport->GetSizeXY();
-				int32 ScaledX = FMath::RoundToInt(NewSize.X * MaterialResolutionFactor);
-				int32 ScaledY = FMath::RoundToInt(NewSize.Y * MaterialResolutionFactor);
+				auto size = LocalPlayer->ViewportClient->Viewport->GetSizeXY();
 
-				// Apenas redimensiona se houver mudança
-				if (Portal_RT->SizeX != ScaledX || Portal_RT->SizeY != ScaledY)
+				if (! (Portal_RT->SizeX == size.X && Portal_RT->SizeY == size.Y))
 				{
-					Portal_RT->ResizeTarget(ScaledX, ScaledY);
+					Portal_RT->ResizeTarget(size.X, size.Y);
 				}
 			}
 		}
 	}
 }
-
 
 void ATeleportPortal::CheckTeleportPlayer()
 {
@@ -320,7 +351,6 @@ void ATeleportPortal::CheckTeleportPlayer()
 	}
 
 	TArray<AActor*> OverlappingActors;
-	OverlappingActors.Reserve(10); // Se você espera, por exemplo, cerca de 10 atores
 	Detection->GetOverlappingActors(OverlappingActors);
 
 	FName TeleportedTag = FName("teleported" + UniqueID.ToString());
@@ -337,6 +367,7 @@ void ATeleportPortal::CheckTeleportPlayer()
 			HandleActorTeleport(OverlappingActor, TeleportedTag, LinkedTeleportedTag);
 		}
 	}
+
 }
 
 void ATeleportPortal::HandleCharacterTeleport(ACharacter* OverlappingCharacter, FName TeleportedTag,
@@ -602,75 +633,88 @@ bool ATeleportPortal::IsPlayerCrossingPortal(FVector point)
 	return isCrossing;
 }
 
-FRotator ATeleportPortal::UpdateSceneCapture_GetUpdatedSceneCaptureRotation(const FRotator& OldRotation)
+FRotator ATeleportPortal::UpdateSceneCapture_GetUpdatedSceneCaptureRotation(FRotator OldRotation)
 {
 	if (!LinkedPortal)
 	{
-		return FRotator::ZeroRotator;
+		return FRotator();
 	}
+	FTransform ActorTransform = GetActorTransform();
 
-	const FTransform& ThisTransform   = GetActorTransform();
-	const FTransform& LinkedTransform = LinkedPortal->GetActorTransform();
 
-	// 1) Rotação do mundo → espaço local deste portal
-	const FQuat WorldQuat     = OldRotation.Quaternion();
-	const FQuat LocalQuat     = ThisTransform.InverseTransformRotation(WorldQuat);
+	FVector X;
+	FVector Y;
+	FVector Z;
+	UKismetMathLibrary::BreakRotIntoAxes(OldRotation, X, Y, Z);
 
-	// 2) Espelhar frente/direita = rotacionar 180º em torno do eixo Z local
-	const FQuat MirrorAroundUp = FQuat(FVector::UpVector, PI); // 180 graus
-	const FQuat MirroredLocal  = MirrorAroundUp * LocalQuat;
 
-	// 3) Espaço local do portal linkado → mundo
-	const FQuat ResultWorldQuat = LinkedTransform.TransformRotation(MirroredLocal);
+	X = UKismetMathLibrary::InverseTransformDirection(ActorTransform, X);
+	X = UKismetMathLibrary::MirrorVectorByNormal(X, FVector(1, 0, 0));
+	X = UKismetMathLibrary::MirrorVectorByNormal(X, FVector(0, 1, 0));
+	FVector TransformDirectionForward = UKismetMathLibrary::TransformDirection(LinkedPortal->GetActorTransform(), X);
 
-	return ResultWorldQuat.Rotator();
+	Y = UKismetMathLibrary::InverseTransformDirection(ActorTransform, Y);
+	Y = UKismetMathLibrary::MirrorVectorByNormal(Y, FVector(1, 0, 0));
+	Y = UKismetMathLibrary::MirrorVectorByNormal(Y, FVector(0, 1, 0));
+	FVector TransformDirectionRight = UKismetMathLibrary::TransformDirection(LinkedPortal->GetActorTransform(), Y);
+
+	Z = UKismetMathLibrary::InverseTransformDirection(ActorTransform, Z);
+	Z = UKismetMathLibrary::MirrorVectorByNormal(Z, FVector(1, 0, 0));
+	Z = UKismetMathLibrary::MirrorVectorByNormal(Z, FVector(0, 1, 0));
+	FVector TransformDirectionUp = UKismetMathLibrary::TransformDirection(LinkedPortal->GetActorTransform(), Z);
+
+
+	return UKismetMathLibrary::MakeRotationFromAxes(TransformDirectionForward, TransformDirectionRight,
+	                                                TransformDirectionUp);
 }
-
 
 void ATeleportPortal::UpdateSceneCaptureRecursive(FVector Location, FRotator Rotation)
 {
 
-	if (!LinkedPortal) return;
-    
 	APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
-    
-	// Determina a localização e rotação base
-	if (CurrentRecursion == 0)
+	if(LinkedPortal)
 	{
-		Location = CameraManager->GetCameraLocation();
-		Rotation = CameraManager->GetCameraRotation();
+		if(CurrentRecursion == 0) {
+			// PortalCamera->HiddenComponents.Add(Frame);
+			FVector TemporaryLocation = this->UpdateSceneCapture_GetUpdatedSceneCaptureLocation(CameraManager->GetCameraLocation());
+			FRotator TemporaryRotation = this->UpdateSceneCapture_GetUpdatedSceneCaptureRotation(CameraManager->GetCameraRotation());
+			CurrentRecursion++;
+			
+			UpdateSceneCaptureRecursive(TemporaryLocation, TemporaryRotation);
+			LinkedPortal->PortalCamera->SetWorldLocationAndRotation(TemporaryLocation, TemporaryRotation);
+			if(bShouldCaptureAsync) {
+				LinkedPortal->PortalCamera->CaptureSceneDeferred();
+			} else {
+				LinkedPortal->PortalCamera->CaptureScene();
+			}
+			CurrentRecursion = 0;
+		} else if(CurrentRecursion < MaxRecursion) {
+			//PortalCamera->HiddenComponents.Remove(Frame);
+			FVector TemporaryLocation = UpdateSceneCapture_GetUpdatedSceneCaptureLocation(Location);
+			FRotator TemporaryRotation = UpdateSceneCapture_GetUpdatedSceneCaptureRotation(Rotation);
+			CurrentRecursion++;
+			UpdateSceneCaptureRecursive(TemporaryLocation, TemporaryRotation);
+			LinkedPortal->PortalCamera->SetWorldLocationAndRotation(TemporaryLocation, TemporaryRotation);
+			if(bShouldCaptureAsync) {
+				LinkedPortal->PortalCamera->CaptureSceneDeferred();
+			} else {
+				LinkedPortal->PortalCamera->CaptureScene();
+			}
+		} else
+		{
+			FVector TemporaryLocation = UpdateSceneCapture_GetUpdatedSceneCaptureLocation(Location);
+			FRotator TemporaryRotation = Rotation;
+			LinkedPortal->PortalCamera->SetWorldLocationAndRotation(TemporaryLocation, TemporaryRotation);
+			PortalPlane->SetVisibility(false);
+			if(bShouldCaptureAsync) {
+				LinkedPortal->PortalCamera->CaptureSceneDeferred();
+			} else {
+				LinkedPortal->PortalCamera->CaptureScene();
+			}
+			PortalPlane->SetVisibility(true);
+		}
 	}
-    
-	// Calcula as transformações
-	FVector TemporaryLocation = UpdateSceneCapture_GetUpdatedSceneCaptureLocation(Location);
-	FRotator TemporaryRotation = Rotation;
-
-
-	if (CurrentRecursion < MaxRecursion) {
-		TemporaryRotation = UpdateSceneCapture_GetUpdatedSceneCaptureRotation(Rotation);
-	} 
-    
-	// Chamada recursiva se não atingiu o máximo
-	if (CurrentRecursion < MaxRecursion) {
-		CurrentRecursion++;
-		UpdateSceneCaptureRecursive(TemporaryLocation, TemporaryRotation);
-		CurrentRecursion--;
-	} else {
-		PortalPlane->SetVisibility(false);
-	}
-    
-	// Atualiza a câmera e captura a cena
-	LinkedPortal->PortalCamera->SetWorldLocationAndRotation(TemporaryLocation, TemporaryRotation);
-	if (bShouldCaptureAsync) {
-		LinkedPortal->PortalCamera->CaptureSceneDeferred();
-	} else {
-		LinkedPortal->PortalCamera->CaptureScene();
-	}
-    
-	// Restaura a visibilidade e recursão
-	if (CurrentRecursion == MaxRecursion) {
-		PortalPlane->SetVisibility(true);
-	}
+	
 }
 
 void ATeleportPortal::RemoveTeleportTag(AActor* actorToRemoveTag)
@@ -687,16 +731,17 @@ FVector ATeleportPortal::UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVect
 	{
 		return FVector();
 	}
-    
-	FTransform ThisTransform = GetActorTransform();
-	FVector Scale = ThisTransform.GetScale3D();
-	Scale.X = -Scale.X;
-	Scale.Y = -Scale.Y;
-	ThisTransform.SetScale3D(Scale);
-    
-	const FTransform LinkedTransform = LinkedPortal->GetActorTransform();
-	FVector InverseLocation = UKismetMathLibrary::InverseTransformLocation(ThisTransform, PlayerCameraLocation);
-	FVector UpdatedLocation = UKismetMathLibrary::TransformLocation(LinkedTransform, InverseLocation);
-    
-	return UpdatedLocation;
+	FTransform actorTransform = GetActorTransform();
+	FVector scale = actorTransform.GetScale3D();
+
+	scale.X = -scale.X;
+	scale.Y = -scale.Y;
+	actorTransform.SetScale3D(scale);
+	
+	
+	FTransform LinkedPortalTransform = LinkedPortal->GetActorTransform();
+	FVector inverseTransformLocation = UKismetMathLibrary::InverseTransformLocation(actorTransform, PlayerCameraLocation);
+
+	FVector updatedLocation = UKismetMathLibrary::TransformLocation(LinkedPortalTransform, inverseTransformLocation);
+	return updatedLocation;
 }

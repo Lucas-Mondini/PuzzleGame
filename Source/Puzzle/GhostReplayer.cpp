@@ -36,10 +36,44 @@ void AGhostReplayer::BeginPlay()
 	Super::BeginPlay();
 }
 
+void AGhostReplayer::SetEnabled(bool bEnabled)
+{
+	// Se já está no estado desejado, não faz nada
+	if (bIsEnabled == bEnabled)
+	{
+		return;
+	}
+    
+	bIsEnabled = bEnabled;
+    
+	// Se desabilitar, executa a mesma lógica do EndOverlap para todos os atores
+	if (!bIsEnabled)
+	{
+		// Cria uma cópia do array porque StopTrackingActor modifica TrackedActors
+		TArray<AActor*> ActorsToStop;
+		TrackedActors.GetKeys(ActorsToStop);
+        
+		for (AActor* Actor : ActorsToStop)
+		{
+			if (Actor)
+			{
+				StopTrackingActor(Actor);
+			}
+		}
+        
+		// Limpa também os overlapping actors
+		OverlappingActors.Empty();
+	}
+}
 
 void AGhostReplayer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (!bIsEnabled)
+	{
+		return;
+	}
 
 	FVector BoxExtent = Detection->GetScaledBoxExtent();
 	FVector BoxLocation = Detection->GetComponentLocation();
@@ -121,6 +155,11 @@ void AGhostReplayer::Tick(float DeltaTime)
 void AGhostReplayer::NotifyActorBeginOverlap(AActor* OtherActor)
 {
 	Super::NotifyActorBeginOverlap(OtherActor);
+
+	if (!bIsEnabled)
+	{
+		return;
+	}
 
 	while (OtherActor && OtherActor->GetParentActor() != nullptr)
 	{

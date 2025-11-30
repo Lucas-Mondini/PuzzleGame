@@ -70,6 +70,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<TEnumAsByte<ECollisionChannel>, TEnumAsByte<ECollisionResponse>> CollisionResponses;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ghost Replayer")
+	bool bIsEnabled = true;
+
+	UFUNCTION(BlueprintCallable, Category = "Ghost Replayer", CallInEditor)
+	void SetEnabled(bool bEnabled);
 	
 
 private:	

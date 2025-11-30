@@ -60,20 +60,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsVisible = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Isolated Portals")
-	bool bShouldCaptureAsync = false;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bShouldAlwaysUpdateScreenCapture = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bShouldCaptureAsync = false;
+	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float clipPlanesFactor = -1.0;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	float DistanceToRenderFactor = 2000.f;
 	
 	UPROPERTY(VisibleAnywhere)
 	int CurrentRecursion;
-
-	UPROPERTY(EditAnywhere)
-	float MaterialResolutionFactor = 0.5;
 
 	UPROPERTY(VisibleAnywhere)
 	FGuid UniqueID;
@@ -85,30 +86,19 @@ protected:
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+	bool CalculatePortalTickAndCheckIfShouldRender();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float MaxRenderDistance = 5000.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float DistanceToRenderFactor = 2000.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int TickAccumulatorToDistance = 0;
-
-	
 
 	UFUNCTION(BlueprintCallable)
 	bool IsActorVisibleByCamera();
 
 private:
-
-	UPROPERTY()
-	APlayerController* CachedPlayerController = nullptr;
-	// Se o portal for estático, você pode também armazenar os cantos:
-	TArray<FVector> CachedCorners;
-	bool bCornersCached = false;
-
-	UFUNCTION(BlueprintCallable)
-	bool CalculatePortalTickAndCheckIfShouldRender();
+	UPROPERTY(VisibleAnywhere)
+	APlayerController* CachedPlayerController;
+	UPROPERTY(VisibleAnywhere)
+	int TickAccumulatorToDistance = 0;
 
 	UFUNCTION(BlueprintCallable)
 	void CreateDynamicMaterialInstance();
@@ -168,7 +158,7 @@ private:
 	
 
 	FVector UpdateSceneCapture_GetUpdatedSceneCaptureLocation(FVector OldLocation);
-	FRotator UpdateSceneCapture_GetUpdatedSceneCaptureRotation(const FRotator& OldRotation);
+	FRotator UpdateSceneCapture_GetUpdatedSceneCaptureRotation(FRotator OldRotation);
 
 	UFUNCTION(BlueprintCallable)
 	void UpdateSceneCaptureRecursive(FVector Location, FRotator Rotation);
