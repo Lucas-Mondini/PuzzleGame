@@ -73,6 +73,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	float DistanceToRenderFactor = 2000.f;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Portal|Performance")
+	float CaptureResolutionScale = 1.0f; // 0.25 a 1.0
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Portal|Performance")
+	float CaptureResolutionScaleMinDistance = 200.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Portal|Performance")
+	float CaptureResolutionScaleMaxDistance = 2000.0f;
+	
 	UPROPERTY(VisibleAnywhere)
 	int CurrentRecursion;
 
@@ -87,6 +94,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	bool CalculatePortalTickAndCheckIfShouldRender();
+	void UpdateResolutionScaleByDistance();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float MaxRenderDistance = 5000.0f;

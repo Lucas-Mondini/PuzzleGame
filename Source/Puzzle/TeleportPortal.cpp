@@ -39,7 +39,6 @@ ATeleportPortal::ATeleportPortal()
 	PortalCamera->SetupAttachment(RootComponent);
 	PortalCamera->CompositeMode = ESceneCaptureCompositeMode::SCCM_Composite;
 	PortalCamera->bCaptureEveryFrame = false;
-	PortalCamera->bCaptureOnMovement = false;
 	PortalCamera->bAlwaysPersistRenderingState = false;
 
 	Detection = CreateDefaultSubobject<UBoxComponent>(FName("Detection"));
@@ -79,9 +78,9 @@ void ATeleportPortal::Tick(float DeltaTime)
 		bIsVisible = IsActorVisibleByCamera();
 		if((bIsVisible || bShouldAlwaysUpdateScreenCapture) && CalculatePortalTickAndCheckIfShouldRender()) {
 			UpdateSceneCaptureRecursive(FVector(), FRotator());
+			PreventCameraClipping();
+			UpdateViewportSize();
 		}
-		PreventCameraClipping();
-		UpdateViewportSize();
 		CheckTeleportPlayer();
 		SetClipPlanes();
 	} else
@@ -116,6 +115,25 @@ bool ATeleportPortal::CalculatePortalTickAndCheckIfShouldRender()
 	}
 	
 	return false;
+}
+
+void ATeleportPortal::UpdateResolutionScaleByDistance()
+{
+	if (!CachedPlayerController)
+	{
+		CachedPlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	}
+	if (!CachedPlayerController || !CachedPlayerController->PlayerCameraManager)
+	{
+		CaptureResolutionScale =  1.0f;
+		return;
+	}
+
+	const FVector CameraLocation = CachedPlayerController->PlayerCameraManager->GetCameraLocation();
+	const float Distance = FVector::Dist(GetActorLocation(), CameraLocation);
+
+	float Alpha = FMath::Clamp((Distance - CaptureResolutionScaleMinDistance) / (CaptureResolutionScaleMaxDistance - CaptureResolutionScaleMinDistance), 0.f, 1.f);
+	CaptureResolutionScale = FMath::Lerp(1.0f, 0.1f, Alpha);
 }
 
 
@@ -333,10 +351,17 @@ void ATeleportPortal::UpdateViewportSize()
 			if (LocalPlayer->ViewportClient && Portal_RT)
 			{
 				auto size = LocalPlayer->ViewportClient->Viewport->GetSizeXY();
+				
+				UpdateResolutionScaleByDistance();
+				
+				float QuantizedScale = FMath::RoundToFloat(CaptureResolutionScale * 10.f) / 10.f;
 
-				if (! (Portal_RT->SizeX == size.X && Portal_RT->SizeY == size.Y))
+				int32 ScaledX = FMath::Max(1, FMath::RoundToInt(size.X * QuantizedScale));
+				int32 ScaledY = FMath::Max(1, FMath::RoundToInt(size.Y * QuantizedScale));
+
+				if (!(Portal_RT->SizeX == ScaledX && Portal_RT->SizeY == ScaledY))
 				{
-					Portal_RT->ResizeTarget(size.X, size.Y);
+					Portal_RT->ResizeTarget(ScaledX, ScaledY);
 				}
 			}
 		}
